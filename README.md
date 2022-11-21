@@ -2,6 +2,6 @@
 ```
 This is the main repository for the SFS Api that handles and classifies images.
 ```
-
-## Installation
-```
+## API
+### GET /api/v1/images
+This is a placeholder
