@@ -1,3 +1,7 @@
-# Placeholder Readme
+# SFS Image API
+```
+This is the main repository for the SFS Api that handles and classifies images.
+```
 
-This is a placeholder readme for the project. It will be replaced with a more useful readme once the project is ready for release.
+## Installation
+```
