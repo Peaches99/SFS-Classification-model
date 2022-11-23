@@ -1,23 +1,30 @@
 import os
 import time
 import sys
-import psutil
+from datetime import datetime
+from packaging import version
 import numpy as np
 import PIL
 from pynvml import *
 import tensorflow as tf
 from sklearn.utils import shuffle
 
-epochs = 50
+threshold = 0.95
 
+image_shape = (224,224,3)
+epochs = 50
+batch_size = 16
+learning_rate = 0.0001
 
 print("TensorFlow version: {}".format(tf.__version__))
 print("Pillow version: {}".format(PIL.__version__))
 
 if tf.test.is_built_with_cuda():
     print("CUDA is available")
+    cuda = True
 else:
     print("CUDA is NOT available")
+    cuda = False
     
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 if len(physical_devices) > 0:
@@ -33,7 +40,7 @@ def load(path):
             for subfolder in os.listdir(path+'/'+folder):
                 if subfolder == 'ants' or subfolder == 'bees':
                     for image in os.listdir(path+'/'+folder+'/'+subfolder):
-                        img = tf.keras.preprocessing.image.load_img(path+'/'+folder+'/'+subfolder+'/'+image, color_mode='rgb', target_size=(500,500))
+                        img = tf.keras.preprocessing.image.load_img(path+'/'+folder+'/'+subfolder+'/'+image, color_mode='rgb', target_size=(image_shape[0], image_shape[1]))
                         images.append(tf.keras.preprocessing.image.img_to_array(img))
                         if subfolder == 'ants':
                             labels.append(0)
@@ -69,76 +76,52 @@ images, labels = load('data/hymenoptera')
 
 train_images, train_labels, val_images, val_labels = prepare(images, labels)
 
+model = tf.keras.models.Sequential()
 
-base_model = tf.keras.applications.vgg16.VGG16(input_shape=(500, 500, 3), include_top=False, weights='imagenet')
-global_average_layer = tf.keras.layers.GlobalAveragePooling2D()
-
-prediction_layer = tf.keras.Sequential([
-    tf.keras.layers.Dense(256, activation='relu'),
-    tf.keras.layers.Dense(1, activation='sigmoid')
-])
-    
-model = tf.keras.Sequential([
-    base_model,
-    global_average_layer,
-    prediction_layer
-])
-
-#model.compile(optimizer=tf.keras.optimizers.RMSprop(learning_rate=0.0001), loss='binary_crossentropy', metrics=['accuracy'])
-#model.summary()
-
-#history = model.fit(train_images, train_labels, epochs=epochs, validation_data=(val_images, val_labels), batch_size=batch_size)
+#build the model
+model.add(tf.keras.applications.VGG16(include_top=False, weights='imagenet', input_shape=image_shape))
+model.add(tf.keras.layers.Flatten())
+model.add(tf.keras.layers.Dense(2, activation='softmax'))
 
 model.summary()
 
-#hyperparameters
-learning_rate = [0.0001, 0.0002, 0.0005 , 0.001, 0.003, 0.005, 0.01, 0.1]
-epochs = [1]
-batch_size = [16]
-optimizer = ['adam', 'rmsprop', 'sgd', 'adagrad', 'adadelta', 'adamax', 'nadam']
-loss = ['binary_crossentropy', 'categorical_crossentropy', 'sparse_categorical_crossentropy', 'poisson', 'cosine_similarity']
+# make a callback early stopping that also prints the current memory usage and total time
+class MemoryCallback(tf.keras.callbacks.Callback):
+    def on_train_begin(self, logs={}):
+        if cuda:
+            nvmlInit()
+            self.handle = nvmlDeviceGetHandleByIndex(0)
+            self.memory = nvmlDeviceGetMemoryInfo(self.handle).used
+        self.start_time = time.time()
+    
+    def on_train_end(self, logs={}):
+        if cuda:
+            nvmlInit()
+            h = nvmlDeviceGetHandleByIndex(0)
+            end_memory = nvmlDeviceGetMemoryInfo(h).used
+            nvmlShutdown()
+            print("Memory at end: {} MB".format(end_memory//1024//1024))
+            print("Total memory used: {} MB".format((end_memory-self.start_memory)//1024//1024))
+            sys.stdout.flush()
+        print("Total time: {} seconds".format(time.time()-self.start_time), flush=True)
+    
+    def on_epoch_end(self, epoch, logs={}):
+        if cuda:
+            nvmlInit()
+            h = nvmlDeviceGetHandleByIndex(0)
+            self.start_memory = nvmlDeviceGetMemoryInfo(h).used
+            nvmlShutdown()
+        self.epoch_start_time = time.time()
+        # if the validation accuracy and the training accuracy are both above 0.99, stop training and save the model
+        if logs.get('val_accuracy') > threshold and logs.get('accuracy') > threshold:
+            print("Reached 99% accuracy, stopping training")
+            self.model.stop_training = True
+            self.model.save('models/ant_bee_model_{}.h5'.format(history.history['val_accuracy'][-1]))
 
-#run the models
-for lr in learning_rate:
-    for e in epochs:
-        for b in batch_size:
-            for o in optimizer:
-                for l in loss:
-                    if o == 'adam':
-                        opt = tf.keras.optimizers.Adam(learning_rate=lr)
-                    elif o == 'rmsprop':
-                        opt = tf.keras.optimizers.RMSprop(learning_rate=lr)
-                    elif o == 'sgd':
-                        opt = tf.keras.optimizers.SGD(learning_rate=lr)
-                    elif o == 'adagrad':
-                        opt = tf.keras.optimizers.Adagrad(learning_rate=lr)
-                    elif o == 'adadelta':
-                        opt = tf.keras.optimizers.Adadelta(learning_rate=lr)
-                    elif o == 'adamax':
-                        opt = tf.keras.optimizers.Adamax(learning_rate=lr)
-                    elif o == 'nadam':
-                        opt = tf.keras.optimizers.Nadam(learning_rate=lr)
-                    else:
-                        opt = tf.keras.optimizers.RMSprop(learning_rate=lr)
-                    #compile the model
-                    model.compile(optimizer=opt, loss=l, metrics=['accuracy'])
-                    #fit the model
-                    #check if any train_labels are not int
-                    for i in train_labels:
-                        if type(i) == float:
-                            print("Train labels are not int")
-                            sys.exit()
-                    
-                    print()
-                    history = model.fit(train_images, train_labels, epochs=e, validation_data=(val_images, val_labels), batch_size=b)
-                    #save the model if the accuracy is greater than 80%
-                    if history.history['accuracy'][-1] > 0.8:
-                        print("Model saved")
-                        model.save('models/model_{}_{}_{}_{}_{}_{}'.format(lr, e, b, o, l, history.history['accuracy'][-1]), save_format='h5')
-                    #clear the session
-                    tf.keras.backend.clear_session()
-                    #print the results
-                    print("Learning rate: {}".format(lr), " Epochs: {}".format(e), " Batch size: {}".format(b), " Optimizer: {}".format(o), " Loss: {}".format(l))
-                    #print the results
-                    print("Training accuracy: {}".format(history.history['accuracy'][-1]), " Validation accuracy: {}".format(history.history['val_accuracy'][-1]))
-                    print("Training loss: {}".format(history.history['loss'][-1]), " Validation loss: {}".format(history.history['val_loss'][-1]))
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+history = model.fit(train_images, train_labels, epochs=epochs, batch_size=batch_size, validation_data=(val_images, val_labels), callbacks=[MemoryCallback()])
+
+#save the model and put the accuracy in the name
+model.save('models/ant_bee_model_{}.h5'.format(history.history['val_accuracy'][-1]))
+
