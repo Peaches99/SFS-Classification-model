@@ -1,12 +1,10 @@
-from flask import Flask
+# import fast api and set up a quick boilerplate
+from fastapi import FastAPI
 
-app = Flask(__name__)
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
 
 
-@app.route("/")
-def hello_world():
-    return "<p>Hello, World!</p>"
-
-
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=8050)
