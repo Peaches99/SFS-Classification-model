@@ -1,4 +1,6 @@
 import os
+import time
+import sys
 import numpy as np
 import PIL
 import tensorflow as tf
@@ -7,14 +9,9 @@ from sklearn.utils import shuffle
 print("TensorFlow version: {}".format(tf.__version__))
 print("Pillow version: {}".format(PIL.__version__))
 
-#load the images from data/hymenoptera.
-#The images are organized in to a train and validation folder.
-#Each folder has two subfolders, one for ants and one for bees.
-#The ants and bees images are labeled 0 and 1 respectively.
-#The images dont have the same size, so we need to resize them to 500x500.
-#Use any libraries you want to load the images and resize them.
 
 def load(path):
+    print("Loading data from {}".format(path)+" ...")
     images = []
     labels = []
     
@@ -29,11 +26,12 @@ def load(path):
                             labels.append(0)
                         else:
                             labels.append(1)
-    
+    print("Images: {}".format(len(images)))
     return np.array(images), np.array(labels)
 
 
 def prepare(images, labels):
+    print("Preparing data ...")
     #convert the images to float32
     images = images.astype('float32')
     #normalize the images
@@ -44,6 +42,7 @@ def prepare(images, labels):
     train_images, train_labels = images[:int(len(images)*0.8)], labels[:int(len(labels)*0.8)]
     val_images, val_labels = images[int(len(images)*0.8):], labels[int(len(labels)*0.8):]
     
+    print("Train images: {}".format(train_images.shape), " Validation images: {}".format(val_images.shape))
     return train_images, train_labels, val_images, val_labels
 
 
