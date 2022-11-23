@@ -9,7 +9,6 @@ import tensorflow as tf
 from sklearn.utils import shuffle
 
 epochs = 50
-batch_size = 16
 
 
 print("TensorFlow version: {}".format(tf.__version__))
@@ -55,6 +54,12 @@ def prepare(images, labels):
     #split the images into train and validation
     train_images, train_labels = images[:int(len(images)*0.8)], labels[:int(len(labels)*0.8)]
     val_images, val_labels = images[int(len(images)*0.8):], labels[int(len(labels)*0.8):]
+   
+    #turn everything into float
+    train_images = train_images.astype('float32')
+    val_images = val_images.astype('float32')
+    train_labels = train_labels.astype('float32')
+    val_labels = val_labels.astype('float32')
     
     print("Train images: {}".format(train_images.shape), " Validation images: {}".format(val_images.shape))
     return train_images, train_labels, val_images, val_labels
@@ -84,12 +89,12 @@ model = tf.keras.Sequential([
 
 #history = model.fit(train_images, train_labels, epochs=epochs, validation_data=(val_images, val_labels), batch_size=batch_size)
 
-# run multiple models to optimize the hyperparameters
+model.summary()
 
 #hyperparameters
 learning_rate = [0.0001, 0.0002, 0.0005 , 0.001, 0.003, 0.005, 0.01, 0.1]
-epochs = [50]
-batch_size = [8, 16]
+epochs = [1]
+batch_size = [16]
 optimizer = ['adam', 'rmsprop', 'sgd', 'adagrad', 'adadelta', 'adamax', 'nadam']
 loss = ['binary_crossentropy', 'categorical_crossentropy', 'sparse_categorical_crossentropy', 'poisson', 'cosine_similarity']
 
@@ -118,11 +123,18 @@ for lr in learning_rate:
                     #compile the model
                     model.compile(optimizer=opt, loss=l, metrics=['accuracy'])
                     #fit the model
+                    #check if any train_labels are not int
+                    for i in train_labels:
+                        if type(i) == float:
+                            print("Train labels are not int")
+                            sys.exit()
+                    
+                    print()
                     history = model.fit(train_images, train_labels, epochs=e, validation_data=(val_images, val_labels), batch_size=b)
                     #save the model if the accuracy is greater than 80%
                     if history.history['accuracy'][-1] > 0.8:
                         print("Model saved")
-                        model.save('models/model_{}_{}_{}_{}_{}_{}'.format(lr, e, b, o, l, history.history['accuracy'][-1]))
+                        model.save('models/model_{}_{}_{}_{}_{}_{}'.format(lr, e, b, o, l, history.history['accuracy'][-1]), save_format='h5')
                     #clear the session
                     tf.keras.backend.clear_session()
                     #print the results
