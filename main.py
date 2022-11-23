@@ -49,3 +49,31 @@ def prepare(images, labels):
 images, labels = load('data/hymenoptera')
 
 train_images, train_labels, val_images, val_labels = prepare(images, labels)
+
+# Use vgg 16 as the base model for transfer learning
+
+base_model = tf.keras.applications.vgg16.VGG16(input_shape=(500, 500, 3), include_top=False, weights='imagenet')
+
+base_model.trainable = False
+
+global_average_layer = tf.keras.layers.GlobalAveragePooling2D()
+
+#Make a prediction layer that consists of multiple layers
+
+prediction_layer = tf.keras.Sequential([
+    tf.keras.layers.Dense(256, activation='relu'),
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
+    
+
+model = tf.keras.Sequential([
+    base_model,
+    global_average_layer,
+    prediction_layer
+])
+
+model.compile(optimizer=tf.keras.optimizers.RMSprop(learning_rate=0.0001), loss='binary_crossentropy', metrics=['accuracy'])
+
+model.summary()
+
+#history = model.fit(train_images, train_labels, epochs=5, validation_data=(val_images, val_labels))
