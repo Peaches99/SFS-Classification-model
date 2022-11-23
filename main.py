@@ -2,6 +2,7 @@ import os
 import numpy as np
 import PIL
 import tensorflow as tf
+from sklearn.utils import shuffle
 
 print("TensorFlow version: {}".format(tf.__version__))
 print("Pillow version: {}".format(PIL.__version__))
@@ -38,9 +39,14 @@ def prepare(images, labels):
     #normalize the images
     images /= 255
     #shuffle the images
-    images, labels = tf.keras.utils.shuffle(images, labels)
+    images, labels = shuffle(images, labels)
     #split the images into train and validation
     train_images, train_labels = images[:int(len(images)*0.8)], labels[:int(len(labels)*0.8)]
     val_images, val_labels = images[int(len(images)*0.8):], labels[int(len(labels)*0.8):]
     
     return train_images, train_labels, val_images, val_labels
+
+
+images, labels = load('data/hymenoptera')
+
+train_images, train_labels, val_images, val_labels = prepare(images, labels)
