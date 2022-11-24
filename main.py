@@ -12,8 +12,8 @@ from sklearn.utils import shuffle
 threshold = 0.95
 
 image_shape = (224,224,3)
-epochs = 50
-batch_size = 16
+epochs = 30
+batch_size = 32
 learning_rate = 0.0001
 
 print("TensorFlow version: {}".format(tf.__version__))
@@ -123,5 +123,5 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), l
 history = model.fit(train_images, train_labels, epochs=epochs, batch_size=batch_size, validation_data=(val_images, val_labels), callbacks=[MemoryCallback()])
 
 #save the model and put the accuracy in the name
-model.save('models/ant_bee_model_{}.h5'.format(history.history['val_accuracy'][-1]))
+model.save('models/ant_bee_model_{}.h5'.format(round(history.history['val_accuracy'][-1], 4)))
 
