@@ -10,7 +10,7 @@ from sklearn.utils import shuffle
 
 THRESHOLD = 0.95
 IMAGE_SHAPE = (224, 224, 3)
-EPOCHS = 2
+EPOCHS = 50
 BATCH_SIZE = 64
 LEARNING_RATE = 0.0001
 
@@ -40,14 +40,12 @@ class MemoryCallback(tf.keras.callbacks.Callback):
         self.last_acc = 0.00
         self.early_end = False
         self.start_memory = 0
-        self.memory = 0
-        self.device_handle = ""
+        self.device_handle = None
         self.start_time = time.time()
 
     def on_train_begin(self, logs=None):
         if CUDA:
             self.device_handle = nvmlDeviceGetHandleByIndex(0)
-            self.memory = nvmlDeviceGetMemoryInfo(self.device_handle).used
 
     def on_train_end(self, logs=None):
         if CUDA:
