@@ -12,7 +12,7 @@ from sklearn.utils import shuffle
 threshold = 0.95
 
 image_shape = (224,224,3)
-epochs = 30
+epochs = 100
 batch_size = 32
 learning_rate = 0.0001
 
@@ -53,7 +53,8 @@ def load(path):
 def prepare(images, labels):
     print("Preparing data ...")
     #convert the images to float32
-    images = images.astype('float32')
+    images = images.astype('float64')
+    labels = labels.astype('float64')
     #normalize the images
     images /= 255
     #shuffle the images
@@ -61,12 +62,7 @@ def prepare(images, labels):
     #split the images into train and validation
     train_images, train_labels = images[:int(len(images)*0.8)], labels[:int(len(labels)*0.8)]
     val_images, val_labels = images[int(len(images)*0.8):], labels[int(len(labels)*0.8):]
-   
-    #turn everything into float
-    train_images = train_images.astype('float32')
-    val_images = val_images.astype('float32')
-    train_labels = train_labels.astype('float32')
-    val_labels = val_labels.astype('float32')
+
     
     print("Train images: {}".format(train_images.shape), " Validation images: {}".format(val_images.shape))
     return train_images, train_labels, val_images, val_labels
@@ -123,5 +119,5 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), l
 history = model.fit(train_images, train_labels, epochs=epochs, batch_size=batch_size, validation_data=(val_images, val_labels), callbacks=[MemoryCallback()])
 
 #save the model and put the accuracy in the name
-model.save('models/ant_bee_model_{}.h5'.format(round(history.history['val_accuracy'][-1], 4)))
+model.save('models/ant_bee_{}px_model_{}.h5'.format(image_shape[0],round(history.history['val_accuracy'][-1], 4)))
 
