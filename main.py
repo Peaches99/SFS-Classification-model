@@ -1,19 +1,20 @@
 import os
 import time
 import sys
-from datetime import datetime
-from packaging import version
 import numpy as np
 import PIL
-from pynvml import *
 import tensorflow as tf
+
 from sklearn.utils import shuffle
+from datetime import datetime
+from packaging import version
+from pynvml import *
 
 threshold = 0.95
 
 image_shape = (224,224,3)
 epochs = 100
-batch_size = 32
+batch_size = 64
 learning_rate = 0.0001
 
 print("TensorFlow version: {}".format(tf.__version__))
@@ -81,8 +82,16 @@ model.add(tf.keras.layers.Dense(2, activation='softmax'))
 
 model.summary()
 
+
+
 # make a callback early stopping that also prints the current memory usage and total time
 class MemoryCallback(tf.keras.callbacks.Callback):
+    
+    def __init__(self):
+        self.plateau_threshhold = 5
+        self.plateau_count = 0
+        self.last_acc = 0.00
+    
     def on_train_begin(self, logs={}):
         if cuda:
             nvmlInit()
@@ -100,6 +109,8 @@ class MemoryCallback(tf.keras.callbacks.Callback):
             print("Total memory used: {} MB".format((end_memory-self.start_memory)//1024//1024))
             sys.stdout.flush()
         print("Total time: {} seconds".format(time.time()-self.start_time), flush=True)
+        
+        
     
     def on_epoch_end(self, epoch, logs={}):
         if cuda:
@@ -108,11 +119,19 @@ class MemoryCallback(tf.keras.callbacks.Callback):
             self.start_memory = nvmlDeviceGetMemoryInfo(h).used
             nvmlShutdown()
         self.epoch_start_time = time.time()
+        
+        current_acc = round(logs.get('val_accuracy'), 3)
+        
+        if  current_acc == self.last_acc:
+            self.plateau_count += 1
+        
         # if the validation accuracy and the training accuracy are both above 0.99, stop training and save the model
-        if logs.get('val_accuracy') > threshold and logs.get('accuracy') > threshold:
-            print("Reached 99% accuracy, stopping training")
+        if logs.get('val_accuracy') > threshold and logs.get('accuracy') > threshold or self.plateau_count == self.plateau_threshhold:
+            print("Reached Threshhold accuracy or plateaued, stopping training")
             self.model.stop_training = True
-            self.model.save('models/ant_bee_model_{}.h5'.format(history.history['val_accuracy'][-1]))
+            model.save('models/ant_bee_{}px_model_{}.h5'.format(image_shape[0],round(history.history['val_accuracy'][-1], 4)))
+        
+        self.last_acc = round(logs.get('val_accuracy'), 3)
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
