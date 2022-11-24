@@ -91,6 +91,7 @@ class MemoryCallback(tf.keras.callbacks.Callback):
         self.plateau_threshhold = 5
         self.plateau_count = 0
         self.last_acc = 0.00
+        self.early_end = False
     
     def on_train_begin(self, logs={}):
         if cuda:
@@ -108,6 +109,9 @@ class MemoryCallback(tf.keras.callbacks.Callback):
             print("Memory at end: {} MB".format(end_memory//1024//1024))
             print("Total memory used: {} MB".format((end_memory-self.start_memory)//1024//1024))
             sys.stdout.flush()
+            
+        if self.early_end:
+            print("\n\nReached Threshhold accuracy or plateaued, stopping training\n\n")
         print("Total time: {} seconds".format(time.time()-self.start_time), flush=True)
         
         
@@ -126,8 +130,8 @@ class MemoryCallback(tf.keras.callbacks.Callback):
             self.plateau_count += 1
             
         if logs.get('val_accuracy') > threshold and logs.get('accuracy') > threshold or self.plateau_count == self.plateau_threshhold:
+            self.early_end = True
             self.model.stop_training = True       
-            print("\n\nReached Threshhold accuracy or plateaued, stopping training\n\n")
             
         self.last_acc = round(logs.get('val_accuracy'), 3)
 
