@@ -31,68 +31,6 @@ if len(physical_devices) > 0:
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
-def load(path):
-    """Loads the dataset from the given path"""
-
-    print("Loading data from "+path+" ...")
-    load_images = []
-    load_labels = []
-
-    for folder in os.listdir(path):
-        if folder == 'train' or folder == 'val':
-            for subfolder in os.listdir(path+'/'+folder):
-                if subfolder == 'ants' or subfolder == 'bees':
-                    for image in os.listdir(path+'/'+folder+'/'+subfolder):
-                        img = tf.keras.preprocessing.image.load_img(
-                            path+'/'+folder+'/'+subfolder+'/'+image, color_mode='rgb', target_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]))
-                        load_images.append(
-                            tf.keras.preprocessing.image.img_to_array(img))
-                        if subfolder == 'ants':
-                            load_labels.append(0)
-                        else:
-                            load_labels.append(1)
-    print("Images: "+str(len(load_images)))
-    return np.array(load_images), np.array(load_labels)
-
-
-def prepare(loaded_images, loaded_labels):
-    """Prepares the dataset for training"""
-
-    print("Preparing data ...")
-    # convert the images to float32
-    loaded_images = loaded_images.astype('float64')
-    loaded_labels = loaded_labels.astype('float64')
-    # normalize the images
-    loaded_images /= 255
-    # shuffle the images
-    loaded_images, loaded_labels = shuffle(loaded_images, loaded_labels)
-    # split the images into train and validation
-    ptrain_images, ptrain_labels = loaded_images[:int(
-        len(loaded_images)*0.8)], loaded_labels[:int(len(loaded_labels)*0.8)]
-    pval_images, pval_labels = loaded_images[int(
-        len(loaded_images)*0.8):], loaded_labels[int(len(loaded_labels)*0.8):]
-
-    print("Train images: {}".format(ptrain_images.shape),
-          " Validation images: {}".format(pval_images.shape))
-    return ptrain_images, ptrain_labels, pval_images, pval_labels
-
-
-images, labels = load('data/hymenoptera')
-
-train_images, train_labels, val_images, val_labels = prepare(images, labels)
-
-model = tf.keras.models.Sequential()
-
-# build the model
-model.add(tf.keras.applications.VGG16(include_top=False,
-          weights='imagenet', input_shape=IMAGE_SHAPE))
-model.add(tf.keras.layers.Flatten())
-model.add(tf.keras.layers.Dense(2, activation='softmax'))
-
-model.summary()
-
-
-# make a callback early stopping that also prints the current memory usage and total time
 class MemoryCallback(tf.keras.callbacks.Callback):
     """A callback that stops the model training when the validation accuracy reaches a certain threshhold"""
 
@@ -143,20 +81,89 @@ class MemoryCallback(tf.keras.callbacks.Callback):
         self.last_acc = round(logs.get('val_accuracy'), 3)
 
 
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-              loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+def load(path):
+    """Loads the dataset from the given path"""
 
-CALLBACK = MemoryCallback()
+    print("Loading data from "+path+" ...")
+    load_images = []
+    load_labels = []
 
-HISTORY = model.fit(train_images, train_labels, epochs=EPOCHS, batch_size=BATCH_SIZE,
-                    validation_data=(val_images, val_labels), callbacks=CALLBACK)
+    for folder in os.listdir(path):
+        if folder == 'train' or folder == 'val':
+            for subfolder in os.listdir(path+'/'+folder):
+                if subfolder == 'ants' or subfolder == 'bees':
+                    for image in os.listdir(path+'/'+folder+'/'+subfolder):
+                        img = tf.keras.preprocessing.image.load_img(
+                            path+'/'+folder+'/'+subfolder+'/'+image, color_mode='rgb', target_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]))
+                        load_images.append(
+                            tf.keras.preprocessing.image.img_to_array(img))
+                        if subfolder == 'ants':
+                            load_labels.append(0)
+                        else:
+                            load_labels.append(1)
+    print("Images: "+str(len(load_images)))
+    return np.array(load_images), np.array(load_labels)
 
-# save the model and put the accuracy in the name
 
-RES = IMAGE_SHAPE[0]
-ACC = round(HISTORY.history['val_accuracy'][-1], 4)
-model.save(f"models/ant_bee_{RES}px_model_{ACC}.h5")
+def prepare(loaded_images, loaded_labels):
+    """Prepares the dataset for training"""
+
+    print("Preparing data ...")
+    # convert the images to float32
+    loaded_images = loaded_images.astype('float64')
+    loaded_labels = loaded_labels.astype('float64')
+    # normalize the images
+    loaded_images /= 255
+    # shuffle the images
+    loaded_images, loaded_labels = shuffle(loaded_images, loaded_labels)
+    # split the images into train and validation
+    ptrain_images, ptrain_labels = loaded_images[:int(
+        len(loaded_images)*0.8)], loaded_labels[:int(len(loaded_labels)*0.8)]
+    pval_images, pval_labels = loaded_images[int(
+        len(loaded_images)*0.8):], loaded_labels[int(len(loaded_labels)*0.8):]
+
+    print(f"Train images: {ptrain_images.shape}",
+          f" Validation images: {pval_images.shape}")
+    return ptrain_images, ptrain_labels, pval_images, pval_labels
+
+
+def main():
+    """Main function"""
+    train_single()
+
+
+def train_single():
+    """Trains a single model using the global variables"""
+
+    images, labels = load('data/hymenoptera')
+
+    train_images, train_labels, val_images, val_labels = prepare(
+        images, labels)
+
+    model = tf.keras.models.Sequential()
+
+    # build the model
+    model.add(tf.keras.applications.VGG16(include_top=False,
+                                          weights='imagenet', input_shape=IMAGE_SHAPE))
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dense(2, activation='softmax'))
+
+    model.summary()
+
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+                  loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+    callback = MemoryCallback()
+
+    history = model.fit(train_images, train_labels, epochs=EPOCHS, batch_size=BATCH_SIZE,
+                        validation_data=(val_images, val_labels), callbacks=callback)
+
+    # save the model and put the accuracy in the name
+
+    res = IMAGE_SHAPE[0]
+    acc = round(history.history['val_accuracy'][-1], 4)
+    model.save(f"models/ant_bee_{res}px_model_{acc}.h5")
 
 
 if __name__ == "__main__":
-    pass
+    main()
