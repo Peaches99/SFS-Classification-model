@@ -5,68 +5,76 @@ import numpy as np
 import PIL
 import tensorflow as tf
 
+from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo, nvmlShutdown
 from sklearn.utils import shuffle
-from datetime import datetime
-from packaging import version
-from pynvml import *
 
-threshold = 0.95
+THRESHOLD = 0.95
+IMAGE_SHAPE = (224, 224, 3)
+EPOCHS = 2
+BATCH_SIZE = 64
+LEARNING_RATE = 0.0001
 
-image_shape = (224,224,3)
-epochs = 100
-batch_size = 64
-learning_rate = 0.0001
-
-print("TensorFlow version: {}".format(tf.__version__))
-print("Pillow version: {}".format(PIL.__version__))
+print("TensorFlow version: "+tf.__version__)
+print("Pillow version: "+PIL.__version__)
 
 if tf.test.is_built_with_cuda():
     print("CUDA is available")
-    cuda = True
+    CUDA = True
+    nvmlInit()
 else:
     print("CUDA is NOT available")
-    cuda = False
-    
+    CUDA = False
+
+
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 if len(physical_devices) > 0:
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
+
 def load(path):
-    print("Loading data from {}".format(path)+" ...")
-    images = []
-    labels = []
-    
+    """Loads the dataset from the given path"""
+
+    print("Loading data from "+path+" ...")
+    load_images = []
+    load_labels = []
+
     for folder in os.listdir(path):
         if folder == 'train' or folder == 'val':
             for subfolder in os.listdir(path+'/'+folder):
                 if subfolder == 'ants' or subfolder == 'bees':
                     for image in os.listdir(path+'/'+folder+'/'+subfolder):
-                        img = tf.keras.preprocessing.image.load_img(path+'/'+folder+'/'+subfolder+'/'+image, color_mode='rgb', target_size=(image_shape[0], image_shape[1]))
-                        images.append(tf.keras.preprocessing.image.img_to_array(img))
+                        img = tf.keras.preprocessing.image.load_img(
+                            path+'/'+folder+'/'+subfolder+'/'+image, color_mode='rgb', target_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]))
+                        load_images.append(
+                            tf.keras.preprocessing.image.img_to_array(img))
                         if subfolder == 'ants':
-                            labels.append(0)
+                            load_labels.append(0)
                         else:
-                            labels.append(1)
-    print("Images: {}".format(len(images)))
-    return np.array(images), np.array(labels)
+                            load_labels.append(1)
+    print("Images: "+str(len(load_images)))
+    return np.array(load_images), np.array(load_labels)
 
 
-def prepare(images, labels):
+def prepare(loaded_images, loaded_labels):
+    """Prepares the dataset for training"""
+
     print("Preparing data ...")
-    #convert the images to float32
-    images = images.astype('float64')
-    labels = labels.astype('float64')
-    #normalize the images
-    images /= 255
-    #shuffle the images
-    images, labels = shuffle(images, labels)
-    #split the images into train and validation
-    train_images, train_labels = images[:int(len(images)*0.8)], labels[:int(len(labels)*0.8)]
-    val_images, val_labels = images[int(len(images)*0.8):], labels[int(len(labels)*0.8):]
+    # convert the images to float32
+    loaded_images = loaded_images.astype('float64')
+    loaded_labels = loaded_labels.astype('float64')
+    # normalize the images
+    loaded_images /= 255
+    # shuffle the images
+    loaded_images, loaded_labels = shuffle(loaded_images, loaded_labels)
+    # split the images into train and validation
+    ptrain_images, ptrain_labels = loaded_images[:int(
+        len(loaded_images)*0.8)], loaded_labels[:int(len(loaded_labels)*0.8)]
+    pval_images, pval_labels = loaded_images[int(
+        len(loaded_images)*0.8):], loaded_labels[int(len(loaded_labels)*0.8):]
 
-    
-    print("Train images: {}".format(train_images.shape), " Validation images: {}".format(val_images.shape))
-    return train_images, train_labels, val_images, val_labels
+    print("Train images: {}".format(ptrain_images.shape),
+          " Validation images: {}".format(pval_images.shape))
+    return ptrain_images, ptrain_labels, pval_images, pval_labels
 
 
 images, labels = load('data/hymenoptera')
@@ -75,70 +83,80 @@ train_images, train_labels, val_images, val_labels = prepare(images, labels)
 
 model = tf.keras.models.Sequential()
 
-#build the model
-model.add(tf.keras.applications.VGG16(include_top=False, weights='imagenet', input_shape=image_shape))
+# build the model
+model.add(tf.keras.applications.VGG16(include_top=False,
+          weights='imagenet', input_shape=IMAGE_SHAPE))
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dense(2, activation='softmax'))
 
 model.summary()
 
 
-
 # make a callback early stopping that also prints the current memory usage and total time
 class MemoryCallback(tf.keras.callbacks.Callback):
-    
+    """A callback that stops the model training when the validation accuracy reaches a certain threshhold"""
+
     def __init__(self):
         self.plateau_threshhold = 5
         self.plateau_count = 0
         self.last_acc = 0.00
         self.early_end = False
-    
-    def on_train_begin(self, logs={}):
-        if cuda:
-            nvmlInit()
-            self.handle = nvmlDeviceGetHandleByIndex(0)
-            self.memory = nvmlDeviceGetMemoryInfo(self.handle).used
+        self.start_memory = 0
+        self.memory = 0
+        self.device_handle = ""
         self.start_time = time.time()
-    
-    def on_train_end(self, logs={}):
-        if cuda:
-            nvmlInit()
-            h = nvmlDeviceGetHandleByIndex(0)
-            end_memory = nvmlDeviceGetMemoryInfo(h).used
-            nvmlShutdown()
-            print("Memory at end: {} MB".format(end_memory//1024//1024))
-            print("Total memory used: {} MB".format((end_memory-self.start_memory)//1024//1024))
+
+    def on_train_begin(self, logs=None):
+        if CUDA:
+            self.device_handle = nvmlDeviceGetHandleByIndex(0)
+            self.memory = nvmlDeviceGetMemoryInfo(self.device_handle).used
+
+    def on_train_end(self, logs=None):
+        if CUDA:
+            end_memory = nvmlDeviceGetMemoryInfo(self.device_handle).used
+            print(f"Memory at end: {end_memory//1024//1024} MB")
+            used_memory = (end_memory-self.start_memory)//1024//1024
+            print(f"Total memory used: {used_memory} MB")
             sys.stdout.flush()
-            
+            nvmlShutdown()
         if self.early_end:
             print("\n\nReached Threshhold accuracy or plateaued, stopping training\n\n")
-        print("Total time: {} seconds".format(time.time()-self.start_time), flush=True)
-        
-        
-    
-    def on_epoch_end(self, epoch, logs={}):
-        if cuda:
+        elapsed = time.time()-self.start_time
+        print(f"Total time: {elapsed} seconds")
+
+    def on_epoch_end(self, epoch, logs=None):
+        if CUDA:
             nvmlInit()
-            h = nvmlDeviceGetHandleByIndex(0)
-            self.start_memory = nvmlDeviceGetMemoryInfo(h).used
+            self.start_memory = nvmlDeviceGetMemoryInfo(
+                self.device_handle).used
             nvmlShutdown()
-        self.epoch_start_time = time.time()
-        
+
         current_acc = round(logs.get('val_accuracy'), 3)
-        
-        if  current_acc == self.last_acc:
+
+        if current_acc == self.last_acc:
             self.plateau_count += 1
-            
-        if logs.get('val_accuracy') > threshold and logs.get('accuracy') > threshold or self.plateau_count == self.plateau_threshhold:
+
+        if logs.get('val_accuracy') > THRESHOLD and logs.get('accuracy') > THRESHOLD or self.plateau_count == self.plateau_threshhold:
             self.early_end = True
-            self.model.stop_training = True       
-            
+            self.model.stop_training = True
+
         self.last_acc = round(logs.get('val_accuracy'), 3)
 
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
-history = model.fit(train_images, train_labels, epochs=epochs, batch_size=batch_size, validation_data=(val_images, val_labels), callbacks=[MemoryCallback()])
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+              loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
-#save the model and put the accuracy in the name
-model.save('models/ant_bee_{}px_model_{}.h5'.format(image_shape[0],round(history.history['val_accuracy'][-1], 4)))
+CALLBACK = MemoryCallback()
 
+HISTORY = model.fit(train_images, train_labels, epochs=EPOCHS, batch_size=BATCH_SIZE,
+                    validation_data=(val_images, val_labels), callbacks=CALLBACK)
+
+# save the model and put the accuracy in the name
+
+RES = IMAGE_SHAPE[0]
+ACC = round(HISTORY.history['val_accuracy'][-1], 4)
+model.save(f"models/ant_bee_{RES}px_model_{ACC}.h5")
+
+
+if __name__ == "__main__":
+    pass
