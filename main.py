@@ -124,13 +124,11 @@ class MemoryCallback(tf.keras.callbacks.Callback):
         
         if  current_acc == self.last_acc:
             self.plateau_count += 1
-        
-        # if the validation accuracy and the training accuracy are both above 0.99, stop training and save the model
+            
         if logs.get('val_accuracy') > threshold and logs.get('accuracy') > threshold or self.plateau_count == self.plateau_threshhold:
-            print("Reached Threshhold accuracy or plateaued, stopping training")
-            self.model.stop_training = True
-            model.save('models/ant_bee_{}px_model_{}.h5'.format(image_shape[0],round(history.history['val_accuracy'][-1], 4)))
-        
+            self.model.stop_training = True       
+            print("\n\nReached Threshhold accuracy or plateaued, stopping training\n\n")
+            
         self.last_acc = round(logs.get('val_accuracy'), 3)
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
