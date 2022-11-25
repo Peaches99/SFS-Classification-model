@@ -9,10 +9,10 @@ from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 from sklearn.utils import shuffle
 
 THRESHOLD = 0.95
-IMAGE_SHAPE = (224, 224, 3)
-EPOCHS = 50
-BATCH_SIZE = 64
-LEARNING_RATE = 0.0001
+IMAGE_SHAPE = (300, 300, 3)
+EPOCHS = 100
+BATCH_SIZE = 32
+LEARNING_RATE = 0.0001 #best current results with 0.0001
 
 print("TensorFlow version: "+tf.__version__)
 print("Pillow version: "+PIL.__version__)
@@ -33,8 +33,8 @@ if len(physical_devices) > 0:
 
 class MemoryCallback(tf.keras.callbacks.Callback):
     """A callback that stops the model training when the validation accuracy reaches a certain threshhold"""
-
-    def __init__(self):
+    
+    def __init__(self): 
         self.plateau_threshhold = 5
         self.plateau_count = 0
         self.last_acc = 0.00
@@ -142,7 +142,7 @@ def train_single():
 
     # build the model
     model.add(tf.keras.applications.VGG16(include_top=False,
-                                          weights='imagenet', input_shape=IMAGE_SHAPE))
+                                          weights='imagenet', input_shape=IMAGE_SHAPE, output_shape))
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dense(2, activation='softmax'))
 
