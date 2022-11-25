@@ -11,7 +11,7 @@ from sklearn.utils import shuffle
 THRESHOLD = 0.95
 IMAGE_SHAPE = (300, 300, 3)
 EPOCHS = 100
-BATCH_SIZE = 16
+BATCH_SIZE = 8
 LEARNING_RATE = 0.0001  # best current results with 0.0001
 
 print("TensorFlow version: "+tf.__version__)
@@ -119,6 +119,7 @@ def prepare(loaded_images, loaded_labels):
     print("Preparing data ...")
     # convert the images to float32
     loaded_images = loaded_images.astype('float64')
+    loaded_labels = loaded_labels.astype('float64')
 
     # normalize the images
     loaded_images /= 255
@@ -137,18 +138,23 @@ def prepare(loaded_images, loaded_labels):
 
 def main():
     """Main function"""
-    train_single()
+    train_single(loss='binary_crossentropy')
 
 
-def train_single(optimizer='adam', learning_rate=0.0001, momentum=0.9, loss='sparse_categorical_crossentropy'):
+def train_single(optimizer='adam', learning_rate=0.0001,
+                 momentum=0.9, loss='sparse_categorical_crossentropy'):
     """Trains a single model using the global variables"""
 
-    optim = choose_optimizer(optimizer, learning_rate, momentum)
+    optimizer = choose_optimizer(optimizer, learning_rate, momentum)
+    loss = choose_loss(loss)
 
     images, labels = load('data/hymenoptera')
 
     train_images, train_labels, val_images, val_labels = prepare(
         images, labels)
+
+    train_labels = tf.keras.utils.to_categorical(train_labels, 2)
+    val_labels = tf.keras.utils.to_categorical(val_labels, 2)
 
     model = tf.keras.models.Sequential()
 
@@ -160,7 +166,7 @@ def train_single(optimizer='adam', learning_rate=0.0001, momentum=0.9, loss='spa
 
     # model.summary()
 
-    model.compile(optimizer=optim,
+    model.compile(optimizer=optimizer,
                   loss=loss, metrics=['accuracy'])
 
     callback = MemoryCallback()
@@ -168,9 +174,8 @@ def train_single(optimizer='adam', learning_rate=0.0001, momentum=0.9, loss='spa
     history = model.fit(train_images, train_labels, epochs=EPOCHS, batch_size=BATCH_SIZE,
                         validation_data=(val_images, val_labels), callbacks=callback)
 
-    res = IMAGE_SHAPE[0]
     acc = round(history.history['val_accuracy'][-1], 4)
-    model.save(f"models/ant_bee_{res}px_model_{acc}.h5")
+    model.save(f"models/ant_bee_{IMAGE_SHAPE[0]}px_model_{acc}.h5")
 
 
 def choose_optimizer(optimizer, learning_rate, momentum):
@@ -202,6 +207,43 @@ def choose_optimizer(optimizer, learning_rate, momentum):
         print("Invalid optimizer, using Adam")
         optim = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     return optim
+
+
+def choose_loss(loss):
+    """Chooses a loss function based on the given string"""
+    loss_func = None
+    if loss == 'sparse_categorical_crossentropy':
+        loss_func = tf.keras.losses.SparseCategoricalCrossentropy()
+    elif loss == 'binary_crossentropy':
+        loss_func = tf.keras.losses.BinaryCrossentropy()
+    elif loss == 'mean_squared_error':
+        loss_func = tf.keras.losses.MeanSquaredError()
+    elif loss == 'mean_absolute_error':
+        loss_func = tf.keras.losses.MeanAbsoluteError()
+    elif loss == 'mean_absolute_percentage_error':
+        loss_func = tf.keras.losses.MeanAbsolutePercentageError()
+    elif loss == 'mean_squared_logarithmic_error':
+        loss_func = tf.keras.losses.MeanSquaredLogarithmicError()
+    elif loss == 'cosine_similarity':
+        loss_func = tf.keras.losses.CosineSimilarity()
+    elif loss == 'huber':
+        loss_func = tf.keras.losses.Huber()
+    elif loss == 'log_cosh':
+        loss_func = tf.keras.losses.LogCosh()
+    elif loss == 'hinge':
+        loss_func = tf.keras.losses.Hinge()
+    elif loss == 'categorical_hinge':
+        loss_func = tf.keras.losses.CategoricalHinge()
+    elif loss == 'squared_hinge':
+        loss_func = tf.keras.losses.SquaredHinge()
+    elif loss == 'kullback_leibler_divergence':
+        loss_func = tf.keras.losses.KLDivergence()
+    elif loss == 'poisson':
+        loss_func = tf.keras.losses.Poisson()
+    else:
+        print("Invalid loss function, using sparse_categorical_crossentropy")
+        loss_func = tf.keras.losses.SparseCategoricalCrossentropy()
+    return loss_func
 
 
 if __name__ == "__main__":
