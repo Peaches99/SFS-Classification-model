@@ -11,8 +11,8 @@ from sklearn.utils import shuffle
 THRESHOLD = 0.95
 IMAGE_SHAPE = (300, 300, 3)
 EPOCHS = 100
-BATCH_SIZE = 32
-LEARNING_RATE = 0.0001 #best current results with 0.0001
+BATCH_SIZE = 16
+LEARNING_RATE = 0.0001  # best current results with 0.0001
 
 print("TensorFlow version: "+tf.__version__)
 print("Pillow version: "+PIL.__version__)
@@ -33,8 +33,9 @@ if len(physical_devices) > 0:
 
 class MemoryCallback(tf.keras.callbacks.Callback):
     """A callback that stops the model training when the validation accuracy reaches a certain threshhold"""
-    
-    def __init__(self): 
+
+    def __init__(self):
+        """initializes the callback"""
         self.plateau_threshhold = 5
         self.plateau_count = 0
         self.last_acc = 0.00
@@ -44,10 +45,12 @@ class MemoryCallback(tf.keras.callbacks.Callback):
         self.start_time = time.time()
 
     def on_train_begin(self, logs=None):
+        """starts the timer and gets the device handle"""
         if CUDA:
             self.device_handle = nvmlDeviceGetHandleByIndex(0)
 
     def on_train_end(self, logs=None):
+        """prints the time and memory used"""
         if CUDA:
             end_memory = nvmlDeviceGetMemoryInfo(self.device_handle).used
             print(f"Memory at end: {end_memory//1024//1024} MB")
@@ -61,10 +64,13 @@ class MemoryCallback(tf.keras.callbacks.Callback):
         print(f"Total time: {elapsed} seconds")
 
     def on_epoch_end(self, epoch, logs=None):
+        """checks the accuracy and memory usage"""
         if CUDA:
             nvmlInit()
             self.start_memory = nvmlDeviceGetMemoryInfo(
                 self.device_handle).used
+            # print the current during the last epoch
+
             nvmlShutdown()
 
         current_acc = round(logs.get('val_accuracy'), 3)
@@ -77,6 +83,10 @@ class MemoryCallback(tf.keras.callbacks.Callback):
             self.model.stop_training = True
 
         self.last_acc = round(logs.get('val_accuracy'), 3)
+
+    def on_epoch_begin(self, epoch, logs=None):
+        if CUDA:
+            print(f"Memory usage: {(self.start_memory//1024//1024)} MB")
 
 
 def load(path):
@@ -109,7 +119,7 @@ def prepare(loaded_images, loaded_labels):
     print("Preparing data ...")
     # convert the images to float32
     loaded_images = loaded_images.astype('float64')
-    loaded_labels = loaded_labels.astype('float64')
+
     # normalize the images
     loaded_images /= 255
     # shuffle the images
@@ -130,8 +140,10 @@ def main():
     train_single()
 
 
-def train_single():
+def train_single(optimizer='adam', learning_rate=0.0001, momentum=0.9, loss='sparse_categorical_crossentropy'):
     """Trains a single model using the global variables"""
+
+    optim = choose_optimizer(optimizer, learning_rate, momentum)
 
     images, labels = load('data/hymenoptera')
 
@@ -146,21 +158,50 @@ def train_single():
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dense(2, activation='softmax'))
 
-    model.summary()
+    # model.summary()
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-                  loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=optim,
+                  loss=loss, metrics=['accuracy'])
 
     callback = MemoryCallback()
 
     history = model.fit(train_images, train_labels, epochs=EPOCHS, batch_size=BATCH_SIZE,
                         validation_data=(val_images, val_labels), callbacks=callback)
 
-    # save the model and put the accuracy in the name
-
     res = IMAGE_SHAPE[0]
     acc = round(history.history['val_accuracy'][-1], 4)
     model.save(f"models/ant_bee_{res}px_model_{acc}.h5")
+
+
+def choose_optimizer(optimizer, learning_rate, momentum):
+    """Chooses an optimizer based on the given string"""
+    optim = None
+    if optimizer == 'adam':
+        optim = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    elif optimizer == 'sgd':
+        optim = tf.keras.optimizers.SGD(learning_rate=learning_rate)
+    elif optimizer == 'rmsprop':
+        optim = tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
+    elif optimizer == 'adagrad':
+        optim = tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
+    elif optimizer == 'adadelta':
+        optim = tf.keras.optimizers.Adadelta(learning_rate=learning_rate)
+    elif optimizer == 'adamax':
+        optim = tf.keras.optimizers.Adamax(learning_rate=learning_rate)
+    elif optimizer == 'nadam':
+        optim = tf.keras.optimizers.Nadam(learning_rate=learning_rate)
+    elif optimizer == 'ftrl':
+        optim = tf.keras.optimizers.Ftrl(learning_rate=learning_rate)
+    elif optimizer == 'sgd_momentum':
+        optim = tf.keras.optimizers.SGD(
+            learning_rate=learning_rate, momentum=momentum)
+    elif optimizer == 'sgd_nesterov':
+        optim = tf.keras.optimizers.SGD(
+            learning_rate=learning_rate, momentum=momentum, nesterov=True)
+    else:
+        print("Invalid optimizer, using Adam")
+        optim = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    return optim
 
 
 if __name__ == "__main__":
