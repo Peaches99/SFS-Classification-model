@@ -142,7 +142,7 @@ def train_single():
 
     # build the model
     model.add(tf.keras.applications.VGG16(include_top=False,
-                                          weights='imagenet', input_shape=IMAGE_SHAPE, output_shape))
+                                          weights='imagenet', input_shape=IMAGE_SHAPE))
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dense(2, activation='softmax'))
 
