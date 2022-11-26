@@ -37,7 +37,7 @@ class MemoryCallback(tf.keras.callbacks.Callback):
 
     def __init__(self):
         """initializes the callback"""
-        self.plateau_threshhold = 5
+        self.plateau_threshhold = 10
         self.plateau_count = 0
         self.last_acc = 0.00
         self.early_end = False
@@ -63,10 +63,10 @@ class MemoryCallback(tf.keras.callbacks.Callback):
         if self.early_end:
             print("\n\nReached Threshhold accuracy or plateaued, stopping training\n\n")
         elapsed = time.time()-self.start_time
-        #save the best model
-        self.best_model.save("best_model.h5")
-        print("Best model stats: " + )))
-        
+        # save the best model
+        self.best_model.save("models/model.h5")
+        print("Model Accuracy: " +
+              str(self.best_model.history.history['val_accuracy'][-1]))
         print(f"Total time: {elapsed} seconds")
         print(f"Average time per epoch: {elapsed/EPOCHS} seconds")
 
@@ -77,9 +77,9 @@ class MemoryCallback(tf.keras.callbacks.Callback):
             self.start_memory = nvmlDeviceGetMemoryInfo(
                 self.device_handle).used
             # print the current during the last epoch
-        #safe the current best model 
-        if logs["val_acc"] > self.last_acc:
-            self.last_acc = logs["val_acc"]
+        # safe the current best model
+        if logs["val_accuracy"] > self.last_acc:
+            self.last_acc = logs["val_accuracy"]
             self.best_model = self.model
             nvmlShutdown()
 
@@ -126,14 +126,38 @@ def load(path):
 def prepare(loaded_images, loaded_labels):
     """Prepares the dataset for training"""
 
-    print("Preparing data ...")
-    # convert the images to float32
     loaded_images = loaded_images.astype('float64')
     loaded_labels = loaded_labels.astype('float64')
+
+    print("Preparing data ...")
+    # add noise to the images
+    for i in range(len(loaded_images)):
+        loaded_images[i] = tf.keras.preprocessing.image.random_shift(
+            loaded_images[i], 0.2, 0.2, row_axis=0, col_axis=1, channel_axis=2)
+        loaded_images[i] = tf.keras.preprocessing.image.random_rotation(
+            loaded_images[i], 40, row_axis=0, col_axis=1, channel_axis=2)
+        loaded_images[i] = tf.keras.preprocessing.image.random_zoom(
+            loaded_images[i], (0.8, 1.2), row_axis=0, col_axis=1, channel_axis=2)
+
     # normalize the images
     loaded_images /= 255
     # shuffle the images
     loaded_images, loaded_labels = shuffle(loaded_images, loaded_labels)
+
+    # prepare the data for usage with resnet50
+    loaded_images = tf.keras.applications.resnet50.preprocess_input(
+        loaded_images)
+
+    # check if data has nan
+    if np.isnan(loaded_images).any() or np.isnan(loaded_labels).any():
+        print("Data has nan")
+        sys.exit(1)
+    
+    # check if the data has inf or -inf as well as generally negative values
+    if np.isinf(loaded_images).any() or np.isinf(loaded_labels).any() or np.min(loaded_images) < 0 or np.min(loaded_labels) < 0:
+        print("Data has inf or -inf")
+        sys.exit(1)
+
     # split the images into train and validation
     ptrain_images, ptrain_labels = loaded_images[:int(
         len(loaded_images)*0.8)], loaded_labels[:int(len(loaded_labels)*0.8)]
@@ -162,18 +186,30 @@ def train_single(optimizer='adam', learning_rate=0.0001,
     train_images, train_labels, val_images, val_labels = prepare(
         images, labels)
 
-    model = tf.keras.models.Sequential()
-
-    # build the model
-    model.add(tf.keras.applications.VGG16(include_top=False,
-                                          weights='imagenet', input_shape=IMAGE_SHAPE))
-    model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(2, activation='softmax'))
-
-    # model.summary()
-
-    model.compile(optimizer=optimizer,
-                  loss=loss, metrics=['accuracy'])
+    model = tf.keras.models.Sequential([
+        tf.keras.applications.ResNet50(
+            include_top=False, weights='imagenet', input_shape=IMAGE_SHAPE),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(512, activation='relu'),
+        tf.keras.layers.Dense(1, activation='sigmoid')
+    ])
+    
+    # add a tiny bit of noise to the weights
+    for layer in model.layers:
+        if isinstance(layer, tf.keras.layers.Dense):
+            layer.kernel = tf.keras.backend.random_normal(
+                layer.kernel.shape, stddev=0.01)
+            layer.bias = tf.keras.backend.random_normal(
+                layer.bias.shape, stddev=0.01)
+    # add a tiny number to the output of the last layer
+    model.layers[-1].bias = tf.keras.backend.random_normal(
+        model.layers[-1].bias.shape, stddev=0.0001)
+    
+    model.summary()
+    
+    # the loss returns nan as the value which is a problem for the optimizer so use the custom gradient_clipping
+    model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+    
 
     callback = MemoryCallback()
 
@@ -181,10 +217,13 @@ def train_single(optimizer='adam', learning_rate=0.0001,
                         validation_data=(val_images, val_labels), callbacks=callback)
 
     # model.save(f"models/ant_bee_{IMAGE_SHAPE[0]}px_model_{test_acc}.h5")
-    model.save("models/model.h5", overwrite=True)
 
     return model, history
 
+@tf.custom_gradient
+def gradient_clipping(x):
+    """ Clipping gradients to avoid exploding gradients """
+    return x, lambda dy: tf.clip_by_norm(dy, 10.0)
 
 def choose_optimizer(optimizer, learning_rate, momentum):
     """Chooses an optimizer based on the given string"""
