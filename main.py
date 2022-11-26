@@ -1,6 +1,7 @@
 import os
 import time
 import sys
+import random
 import numpy as np
 import PIL
 import tensorflow as tf
@@ -9,9 +10,9 @@ from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 from sklearn.utils import shuffle
 
 THRESHOLD = 0.95
-IMAGE_SHAPE = (300, 300, 3)
-EPOCHS = 100
-BATCH_SIZE = 8
+IMAGE_SHAPE = (224, 224, 3)
+EPOCHS = 50
+BATCH_SIZE = 32
 LEARNING_RATE = 0.0001  # best current results with 0.0001
 
 print("TensorFlow version: "+tf.__version__)
@@ -43,6 +44,7 @@ class MemoryCallback(tf.keras.callbacks.Callback):
         self.start_memory = 0
         self.device_handle = None
         self.start_time = time.time()
+        self.best_model = None
 
     def on_train_begin(self, logs=None):
         """starts the timer and gets the device handle"""
@@ -61,7 +63,12 @@ class MemoryCallback(tf.keras.callbacks.Callback):
         if self.early_end:
             print("\n\nReached Threshhold accuracy or plateaued, stopping training\n\n")
         elapsed = time.time()-self.start_time
+        #save the best model
+        self.best_model.save("best_model.h5")
+        print("Best model stats: " + )))
+        
         print(f"Total time: {elapsed} seconds")
+        print(f"Average time per epoch: {elapsed/EPOCHS} seconds")
 
     def on_epoch_end(self, epoch, logs=None):
         """checks the accuracy and memory usage"""
@@ -70,7 +77,10 @@ class MemoryCallback(tf.keras.callbacks.Callback):
             self.start_memory = nvmlDeviceGetMemoryInfo(
                 self.device_handle).used
             # print the current during the last epoch
-
+        #safe the current best model 
+        if logs["val_acc"] > self.last_acc:
+            self.last_acc = logs["val_acc"]
+            self.best_model = self.model
             nvmlShutdown()
 
         current_acc = round(logs.get('val_accuracy'), 3)
@@ -120,7 +130,6 @@ def prepare(loaded_images, loaded_labels):
     # convert the images to float32
     loaded_images = loaded_images.astype('float64')
     loaded_labels = loaded_labels.astype('float64')
-
     # normalize the images
     loaded_images /= 255
     # shuffle the images
@@ -138,7 +147,8 @@ def prepare(loaded_images, loaded_labels):
 
 def main():
     """Main function"""
-    train_single(loss='binary_crossentropy')
+    train_single()
+    test_classify("test_images/")
 
 
 def train_single(optimizer='adam', learning_rate=0.0001,
@@ -146,15 +156,11 @@ def train_single(optimizer='adam', learning_rate=0.0001,
     """Trains a single model using the global variables"""
 
     optimizer = choose_optimizer(optimizer, learning_rate, momentum)
-    loss = choose_loss(loss)
 
     images, labels = load('data/hymenoptera')
 
     train_images, train_labels, val_images, val_labels = prepare(
         images, labels)
-
-    train_labels = tf.keras.utils.to_categorical(train_labels, 2)
-    val_labels = tf.keras.utils.to_categorical(val_labels, 2)
 
     model = tf.keras.models.Sequential()
 
@@ -174,8 +180,10 @@ def train_single(optimizer='adam', learning_rate=0.0001,
     history = model.fit(train_images, train_labels, epochs=EPOCHS, batch_size=BATCH_SIZE,
                         validation_data=(val_images, val_labels), callbacks=callback)
 
-    acc = round(history.history['val_accuracy'][-1], 4)
-    model.save(f"models/ant_bee_{IMAGE_SHAPE[0]}px_model_{acc}.h5")
+    # model.save(f"models/ant_bee_{IMAGE_SHAPE[0]}px_model_{test_acc}.h5")
+    model.save("models/model.h5", overwrite=True)
+
+    return model, history
 
 
 def choose_optimizer(optimizer, learning_rate, momentum):
@@ -209,41 +217,37 @@ def choose_optimizer(optimizer, learning_rate, momentum):
     return optim
 
 
-def choose_loss(loss):
-    """Chooses a loss function based on the given string"""
-    loss_func = None
-    if loss == 'sparse_categorical_crossentropy':
-        loss_func = tf.keras.losses.SparseCategoricalCrossentropy()
-    elif loss == 'binary_crossentropy':
-        loss_func = tf.keras.losses.BinaryCrossentropy()
-    elif loss == 'mean_squared_error':
-        loss_func = tf.keras.losses.MeanSquaredError()
-    elif loss == 'mean_absolute_error':
-        loss_func = tf.keras.losses.MeanAbsoluteError()
-    elif loss == 'mean_absolute_percentage_error':
-        loss_func = tf.keras.losses.MeanAbsolutePercentageError()
-    elif loss == 'mean_squared_logarithmic_error':
-        loss_func = tf.keras.losses.MeanSquaredLogarithmicError()
-    elif loss == 'cosine_similarity':
-        loss_func = tf.keras.losses.CosineSimilarity()
-    elif loss == 'huber':
-        loss_func = tf.keras.losses.Huber()
-    elif loss == 'log_cosh':
-        loss_func = tf.keras.losses.LogCosh()
-    elif loss == 'hinge':
-        loss_func = tf.keras.losses.Hinge()
-    elif loss == 'categorical_hinge':
-        loss_func = tf.keras.losses.CategoricalHinge()
-    elif loss == 'squared_hinge':
-        loss_func = tf.keras.losses.SquaredHinge()
-    elif loss == 'kullback_leibler_divergence':
-        loss_func = tf.keras.losses.KLDivergence()
-    elif loss == 'poisson':
-        loss_func = tf.keras.losses.Poisson()
-    else:
-        print("Invalid loss function, using sparse_categorical_crossentropy")
-        loss_func = tf.keras.losses.SparseCategoricalCrossentropy()
-    return loss_func
+def test_load(path):
+    # get the images from the given path, resize them and run the model on them
+    # then change the file names to either bee or ant or unknown
+    print("Loading test images from "+path+" ...")
+    load_images = []
+    for image in os.listdir(path):
+        img = tf.keras.preprocessing.image.load_img(
+            path+'/'+image, color_mode='rgb', target_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]))
+        load_images.append(tf.keras.preprocessing.image.img_to_array(img))
+    return np.array(load_images)
+
+
+def test_classify(path):
+    """Tests the model on the images in the given path"""
+    print("Testing model on images in "+path+" ...")
+
+    model = tf.keras.models.load_model('models/model.h5')
+    # rename each image to a random number
+    for index, image in enumerate(os.listdir(path)):
+        os.rename(path+image, path+str(index)+'.jpg')
+    loaded_images = test_load(path)
+    # get the predictions
+    predictions = model.predict(loaded_images)
+    # rename each image to either bee or ant
+    for i in range(len(predictions)):
+        random_number = str(random.randint(0, 100000))
+        print(predictions[i][0], predictions[i][1])
+        if predictions[i][0] > predictions[i][1]:
+            os.rename(path+str(i)+'.jpg', path+'ant'+random_number+'.jpg')
+        else:
+            os.rename(path+str(i)+'.jpg', path+'bee'+random_number+'.jpg')
 
 
 if __name__ == "__main__":
