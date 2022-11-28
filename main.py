@@ -126,8 +126,8 @@ def load(path):
 def prepare(loaded_images, loaded_labels):
     """Prepares the dataset for training"""
 
-    loaded_images = loaded_images.astype('float64')
-    loaded_labels = loaded_labels.astype('float64')
+    loaded_images = loaded_images.astype('float32')
+    loaded_labels = loaded_labels.astype('float32')
 
     print("Preparing data ...")
     # add noise to the images
@@ -139,23 +139,25 @@ def prepare(loaded_images, loaded_labels):
         loaded_images[i] = tf.keras.preprocessing.image.random_zoom(
             loaded_images[i], (0.8, 1.2), row_axis=0, col_axis=1, channel_axis=2)
 
+
+
     # normalize the images
     loaded_images /= 255
+    print("Min: ", np.min(loaded_images))
+    print("Max: ", np.max(loaded_images))
     # shuffle the images
     loaded_images, loaded_labels = shuffle(loaded_images, loaded_labels)
-
-    # prepare the data for usage with resnet50
-    loaded_images = tf.keras.applications.resnet50.preprocess_input(
-        loaded_images)
 
     # check if data has nan
     if np.isnan(loaded_images).any() or np.isnan(loaded_labels).any():
         print("Data has nan")
         sys.exit(1)
-    
+
     # check if the data has inf or -inf as well as generally negative values
     if np.isinf(loaded_images).any() or np.isinf(loaded_labels).any() or np.min(loaded_images) < 0 or np.min(loaded_labels) < 0:
         print("Data has inf or -inf")
+        print(np.min(loaded_images))
+        print(np.max(loaded_images))
         sys.exit(1)
 
     # split the images into train and validation
@@ -191,9 +193,14 @@ def train_single(optimizer='adam', learning_rate=0.0001,
             include_top=False, weights='imagenet', input_shape=IMAGE_SHAPE),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(512, activation='relu'),
+        tf.keras.layers.Dense(512, activation='relu'),
         tf.keras.layers.Dense(1, activation='sigmoid')
     ])
-    
+
+    # freeze the resnet50 layers
+    for layer in model.layers[0].layers:
+        layer.trainable = False
+
     # add a tiny bit of noise to the weights
     for layer in model.layers:
         if isinstance(layer, tf.keras.layers.Dense):
@@ -204,12 +211,11 @@ def train_single(optimizer='adam', learning_rate=0.0001,
     # add a tiny number to the output of the last layer
     model.layers[-1].bias = tf.keras.backend.random_normal(
         model.layers[-1].bias.shape, stddev=0.0001)
-    
+
     model.summary()
-    
+
     # the loss returns nan as the value which is a problem for the optimizer so use the custom gradient_clipping
     model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
-    
 
     callback = MemoryCallback()
 
@@ -220,10 +226,12 @@ def train_single(optimizer='adam', learning_rate=0.0001,
 
     return model, history
 
+
 @tf.custom_gradient
 def gradient_clipping(x):
     """ Clipping gradients to avoid exploding gradients """
     return x, lambda dy: tf.clip_by_norm(dy, 10.0)
+
 
 def choose_optimizer(optimizer, learning_rate, momentum):
     """Chooses an optimizer based on the given string"""
