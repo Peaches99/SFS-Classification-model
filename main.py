@@ -129,45 +129,7 @@ def prepare(loaded_images, loaded_labels):
     loaded_images = loaded_images.astype('float32')
     loaded_labels = loaded_labels.astype('float32')
 
-    print("Preparing data ...")
-    # add noise to the images
-    for i in range(len(loaded_images)):
-        loaded_images[i] = tf.keras.preprocessing.image.random_shift(
-            loaded_images[i], 0.2, 0.2, row_axis=0, col_axis=1, channel_axis=2)
-        loaded_images[i] = tf.keras.preprocessing.image.random_rotation(
-            loaded_images[i], 40, row_axis=0, col_axis=1, channel_axis=2)
-        loaded_images[i] = tf.keras.preprocessing.image.random_zoom(
-            loaded_images[i], (0.8, 1.2), row_axis=0, col_axis=1, channel_axis=2)
-
-
-
-    # normalize the images
-    loaded_images /= 255
-    print("Min: ", np.min(loaded_images))
-    print("Max: ", np.max(loaded_images))
-    # shuffle the images
-    loaded_images, loaded_labels = shuffle(loaded_images, loaded_labels)
-
-    # check if data has nan
-    if np.isnan(loaded_images).any() or np.isnan(loaded_labels).any():
-        print("Data has nan")
-        sys.exit(1)
-
-    # check if the data has inf or -inf as well as generally negative values
-    if np.isinf(loaded_images).any() or np.isinf(loaded_labels).any() or np.min(loaded_images) < 0 or np.min(loaded_labels) < 0:
-        print("Data has inf or -inf")
-        print(np.min(loaded_images))
-        print(np.max(loaded_images))
-        sys.exit(1)
-
-    # split the images into train and validation
-    ptrain_images, ptrain_labels = loaded_images[:int(
-        len(loaded_images)*0.8)], loaded_labels[:int(len(loaded_labels)*0.8)]
-    pval_images, pval_labels = loaded_images[int(
-        len(loaded_images)*0.8):], loaded_labels[int(len(loaded_labels)*0.8):]
-
-    print(f"Train images: {ptrain_images.shape}",
-          f" Validation images: {pval_images.shape}")
+    
     return ptrain_images, ptrain_labels, pval_images, pval_labels
 
 
@@ -176,55 +138,8 @@ def main():
     train_single()
     test_classify("test_images/")
 
-
-def train_single(optimizer='adam', learning_rate=0.0001,
-                 momentum=0.9, loss='sparse_categorical_crossentropy'):
-    """Trains a single model using the global variables"""
-
-    optimizer = choose_optimizer(optimizer, learning_rate, momentum)
-
-    images, labels = load('data/hymenoptera')
-
-    train_images, train_labels, val_images, val_labels = prepare(
-        images, labels)
-
-    model = tf.keras.models.Sequential([
-        tf.keras.applications.ResNet50(
-            include_top=False, weights='imagenet', input_shape=IMAGE_SHAPE),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(512, activation='relu'),
-        tf.keras.layers.Dense(512, activation='relu'),
-        tf.keras.layers.Dense(1, activation='sigmoid')
-    ])
-
-    # freeze the resnet50 layers
-    for layer in model.layers[0].layers:
-        layer.trainable = False
-
-    # add a tiny bit of noise to the weights
-    for layer in model.layers:
-        if isinstance(layer, tf.keras.layers.Dense):
-            layer.kernel = tf.keras.backend.random_normal(
-                layer.kernel.shape, stddev=0.01)
-            layer.bias = tf.keras.backend.random_normal(
-                layer.bias.shape, stddev=0.01)
-    # add a tiny number to the output of the last layer
-    model.layers[-1].bias = tf.keras.backend.random_normal(
-        model.layers[-1].bias.shape, stddev=0.0001)
-
-    model.summary()
-
-    # the loss returns nan as the value which is a problem for the optimizer so use the custom gradient_clipping
-    model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
-
-    callback = MemoryCallback()
-
-    history = model.fit(train_images, train_labels, epochs=EPOCHS, batch_size=BATCH_SIZE,
-                        validation_data=(val_images, val_labels), callbacks=callback)
-
-    # model.save(f"models/ant_bee_{IMAGE_SHAPE[0]}px_model_{test_acc}.h5")
-
-    return model, history
+def train_single():
+    """ trains the model on the dataset"""
 
 
 @tf.custom_gradient
@@ -232,36 +147,6 @@ def gradient_clipping(x):
     """ Clipping gradients to avoid exploding gradients """
     return x, lambda dy: tf.clip_by_norm(dy, 10.0)
 
-
-def choose_optimizer(optimizer, learning_rate, momentum):
-    """Chooses an optimizer based on the given string"""
-    optim = None
-    if optimizer == 'adam':
-        optim = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    elif optimizer == 'sgd':
-        optim = tf.keras.optimizers.SGD(learning_rate=learning_rate)
-    elif optimizer == 'rmsprop':
-        optim = tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
-    elif optimizer == 'adagrad':
-        optim = tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
-    elif optimizer == 'adadelta':
-        optim = tf.keras.optimizers.Adadelta(learning_rate=learning_rate)
-    elif optimizer == 'adamax':
-        optim = tf.keras.optimizers.Adamax(learning_rate=learning_rate)
-    elif optimizer == 'nadam':
-        optim = tf.keras.optimizers.Nadam(learning_rate=learning_rate)
-    elif optimizer == 'ftrl':
-        optim = tf.keras.optimizers.Ftrl(learning_rate=learning_rate)
-    elif optimizer == 'sgd_momentum':
-        optim = tf.keras.optimizers.SGD(
-            learning_rate=learning_rate, momentum=momentum)
-    elif optimizer == 'sgd_nesterov':
-        optim = tf.keras.optimizers.SGD(
-            learning_rate=learning_rate, momentum=momentum, nesterov=True)
-    else:
-        print("Invalid optimizer, using Adam")
-        optim = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    return optim
 
 
 def test_load(path):
