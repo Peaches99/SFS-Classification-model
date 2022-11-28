@@ -5,6 +5,7 @@ import random
 import numpy as np
 import PIL
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo, nvmlShutdown
 from sklearn.utils import shuffle
@@ -123,30 +124,55 @@ def load(path):
     return np.array(load_images), np.array(load_labels)
 
 
-def prepare(loaded_images, loaded_labels):
+def prepare(images, labels):
     """Prepares the dataset for training"""
 
-    loaded_images = loaded_images.astype('float32')
-    loaded_labels = loaded_labels.astype('float32')
+    images = images.astype('float32')
+    labels = labels.astype('float32')
 
-    
-    return ptrain_images, ptrain_labels, pval_images, pval_labels
+    # shuffle the data
+    images, labels = shuffle(images, labels)
+
+    # normalize the data
+    images /= 255.0
+
+    # plt.figure(figsize=(10, 10))
+    # for i, image in enumerate(images[:9]):
+    #     ax = plt.subplot(3, 3, i + 1)
+    #     plt.imshow(image)
+    #     plt.title(int(labels[i]))
+    #     plt.axis("off")
+    # plt.show()
+
+    # split the data into training and validation with a 80/20 split
+    split = int(len(images)*0.8)
+    train_images = images[:split]
+    train_labels = labels[:split]
+    val_images = images[split:]
+    val_labels = labels[split:]
+
+    return train_images, train_labels, val_images, val_labels
+
+
+def train_single():
+    """ trains the model on the dataset"""
+
+    # load the data
+    images, labels = load("data/hymenoptera")
+
+    prepare(images, labels)
 
 
 def main():
     """Main function"""
     train_single()
-    test_classify("test_images/")
-
-def train_single():
-    """ trains the model on the dataset"""
+    # test_classify("test_images/")
 
 
 @tf.custom_gradient
 def gradient_clipping(x):
     """ Clipping gradients to avoid exploding gradients """
     return x, lambda dy: tf.clip_by_norm(dy, 10.0)
-
 
 
 def test_load(path):
