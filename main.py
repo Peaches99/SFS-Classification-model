@@ -165,8 +165,11 @@ def train_single():
         images, labels)
 
     # make a basemodel using resnet50
-    base_model = tf.keras.applications.ResNet50(
-        include_top=False, weights='imagenet', input_shape=IMAGE_SHAPE)
+    base_model = keras.applications.Xception(
+    weights="imagenet",  # Load weights pre-trained on ImageNet.
+    input_shape=IMAGE_SHAPE,
+    include_top=False,
+)  # Do not include the ImageNet classifier at the top.
 
     # freeze the base model
     base_model.trainable = False
