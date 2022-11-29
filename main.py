@@ -5,9 +5,11 @@ import random
 import numpy as np
 import PIL
 import tensorflow as tf
+import skimage
 #import matplotlib.pyplot as plt
 from tensorflow import keras
 from keras import layers
+
 
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo, nvmlShutdown
 from sklearn.utils import shuffle
@@ -146,6 +148,13 @@ def prepare(images, labels):
     #     plt.axis("off")
     # plt.show()
 
+    # add noise to the images
+    images = skimage.util.random_noise(
+        images, mode='gaussian', seed=None, clip=True)
+    # randomly flip the images
+    images = tf.image.random_flip_left_right(images)
+    images = tf.image.random_flip_up_down(images)
+
     # split the data into training and validation with a 80/20 split
     split = int(len(images)*0.8)
     train_images = images[:split]
@@ -166,10 +175,10 @@ def train_single():
 
     # make a basemodel using resnet50
     base_model = keras.applications.Xception(
-    weights="imagenet",  # Load weights pre-trained on ImageNet.
-    input_shape=IMAGE_SHAPE,
-    include_top=False,
-)  # Do not include the ImageNet classifier at the top.
+        weights="imagenet",  # Load weights pre-trained on ImageNet.
+        input_shape=IMAGE_SHAPE,
+        include_top=False,
+    )  # Do not include the ImageNet classifier at the top.
 
     # freeze the base model
     base_model.trainable = False
@@ -194,7 +203,6 @@ def train_single():
 
     model.fit(train_images, train_labels, epochs=EPOCHS, validation_data=(
         val_images, val_labels))
-
 
     base_model.trainable = True
     model.summary()
@@ -222,6 +230,7 @@ def gradient_clipping(x):
 
 
 def test_load(path):
+    """ Loads the dataset from the given path """
     # get the images from the given path, resize them and run the model on them
     # then change the file names to either bee or ant or unknown
     print("Loading test images from "+path+" ...")
