@@ -164,7 +164,6 @@ def train_single():
     train_images, train_labels, val_images, val_labels = prepare(
         images, labels)
 
-
     # make a basemodel using resnet50
     base_model = tf.keras.applications.ResNet50(
         include_top=False, weights='imagenet', input_shape=IMAGE_SHAPE)
@@ -182,12 +181,25 @@ def train_single():
     model = keras.Model(inputs, model)
 
     model.summary()
-    
-    #train the top layer
+
+    # train the top layer
     model.compile(
-    optimizer=keras.optimizers.Adam(),
-    loss=keras.losses.BinaryCrossentropy(from_logits=True),
-    metrics=[keras.metrics.BinaryAccuracy()],
+        optimizer=keras.optimizers.Adam(),
+        loss=keras.losses.BinaryCrossentropy(from_logits=True),
+        metrics=[keras.metrics.BinaryAccuracy()],
+    )
+
+    model.fit(train_images, train_labels, epochs=EPOCHS, validation_data=(
+        val_images, val_labels))
+
+
+    base_model.trainable = True
+    model.summary()
+
+    model.compile(
+        optimizer=keras.optimizers.Adam(1e-5),  # Low learning rate
+        loss=keras.losses.BinaryCrossentropy(from_logits=True),
+        metrics=[keras.metrics.BinaryAccuracy()],
     )
 
     model.fit(train_images, train_labels, epochs=EPOCHS, validation_data=(
