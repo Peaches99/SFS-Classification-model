@@ -192,8 +192,6 @@ def train_single():
     model = layers.Dense(1, activation='sigmoid')(model)
     model = keras.Model(inputs, model)
 
-    model.summary()
-
     # train the top layer
     model.compile(
         optimizer=keras.optimizers.Adam(),
@@ -204,8 +202,10 @@ def train_single():
     model.fit(train_images, train_labels, epochs=EPOCHS, validation_data=(
         val_images, val_labels))
 
+    # Fine tune the model
+
     base_model.trainable = True
-    model.summary()
+    # model.summary()
 
     model.compile(
         optimizer=keras.optimizers.Adam(1e-5),  # Low learning rate
@@ -216,11 +216,14 @@ def train_single():
     model.fit(train_images, train_labels, epochs=EPOCHS, validation_data=(
         val_images, val_labels))
 
+    # save the model
+    model.save("models/model.h5", save_format="h5", overwrite=True)
+
 
 def main():
     """Main function"""
     train_single()
-    # test_classify("test_images/")
+    test_classify("test_images/")
 
 
 @tf.custom_gradient
