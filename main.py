@@ -5,7 +5,9 @@ import random
 import numpy as np
 import PIL
 import tensorflow as tf
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
+from tensorflow import keras
+from keras import layers
 
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo, nvmlShutdown
 from sklearn.utils import shuffle
@@ -159,8 +161,33 @@ def train_single():
 
     # load the data
     images, labels = load("data/hymenoptera")
+    train_images, train_labels, val_images, val_labels = prepare(
+        images, labels)
 
-    prepare(images, labels)
+    data_augmentation = keras.Sequential(
+        [layers.RandomFlip("horizontal"), layers.RandomRotation(0.1),],
+        [layers.RandomZoom(0.1), layers.RandomContrast(0.1),],
+        [layers.GaussianNoise(0.1),]
+    )
+
+    # make a basemodel using resnet50
+    base_model = tf.keras.applications.ResNet50(
+        include_top=False, weights='imagenet', input_shape=IMAGE_SHAPE)
+
+    # freeze the base model
+    base_model.trainable = False
+
+    inputs = keras.Input(shape=(150, 150, 3))
+    augmented = data_augmentation(inputs)
+
+    model = base_model(augmented, training=False)
+    model = layers.GlobalAveragePooling2D()(model)
+    model = layers.Dense(512, activation='relu')(model)
+    model = layers.Dropout(0.5)(model)
+    model = layers.Dense(1, activation='sigmoid')(model)
+    model = keras.Model(inputs, model)
+
+    model.summary()
 
 
 def main():
