@@ -1,4 +1,5 @@
 import os
+import string
 import time
 import sys
 import random
@@ -17,7 +18,7 @@ from sklearn.utils import shuffle
 THRESHOLD = 0.95
 IMAGE_SHAPE = (224, 224, 3)
 EPOCHS = 50
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 LEARNING_RATE = 0.0001  # best current results with 0.0001
 
 print("TensorFlow version: "+tf.__version__)
@@ -195,7 +196,7 @@ def train_single():
     # train the top layer
     model.compile(
         optimizer=keras.optimizers.Adam(),
-        loss=keras.losses.BinaryCrossentropy(from_logits=True),
+        loss=keras.losses.BinaryCrossentropy(),
         metrics=[keras.metrics.BinaryAccuracy()],
     )
 
@@ -209,7 +210,7 @@ def train_single():
 
     model.compile(
         optimizer=keras.optimizers.Adam(1e-5),  # Low learning rate
-        loss=keras.losses.BinaryCrossentropy(from_logits=True),
+        loss=keras.losses.BinaryCrossentropy(),
         metrics=[keras.metrics.BinaryAccuracy()],
     )
 
@@ -252,18 +253,26 @@ def test_classify(path):
     model = tf.keras.models.load_model('models/model.h5')
     # rename each image to a random number
     for index, image in enumerate(os.listdir(path)):
-        os.rename(path+image, path+str(index)+'.jpg')
+        # make a random 4 character string
+        random_string = ''.join(random.choices(
+            string.ascii_uppercase + string.digits, k=4))
+        os.rename(path+image, path+random_string+".jpg")
     loaded_images = test_load(path)
     # get the predictions
     predictions = model.predict(loaded_images)
+    # round the predictions to 4 decimal places
+    predictions = np.round(predictions, 4)
+    
+    print(predictions)
     # rename each image to either bee or ant
-    for i in range(len(predictions)):
-        random_number = str(random.randint(0, 100000))
-        print(predictions[i][0], predictions[i][1])
-        if predictions[i][0] > predictions[i][1]:
-            os.rename(path+str(i)+'.jpg', path+'ant'+random_number+'.jpg')
+    print("Predictions:")
+    for index, image in enumerate(os.listdir(path)):
+        if predictions[index] > 0.5:
+            os.rename(path+image, path+"ant_"+image)
+            print("ant_"+image)
         else:
-            os.rename(path+str(i)+'.jpg', path+'bee'+random_number+'.jpg')
+            os.rename(path+image, path+"bee_"+image)
+            print("bee_"+image)
 
 
 if __name__ == "__main__":
