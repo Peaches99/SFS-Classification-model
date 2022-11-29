@@ -164,11 +164,6 @@ def train_single():
     train_images, train_labels, val_images, val_labels = prepare(
         images, labels)
 
-    data_augmentation = keras.Sequential(
-        [layers.RandomFlip("horizontal"), layers.RandomRotation(0.1),],
-        [layers.RandomZoom(0.1), layers.RandomContrast(0.1),],
-        [layers.GaussianNoise(0.1),]
-    )
 
     # make a basemodel using resnet50
     base_model = tf.keras.applications.ResNet50(
@@ -177,10 +172,9 @@ def train_single():
     # freeze the base model
     base_model.trainable = False
 
-    inputs = keras.Input(shape=(150, 150, 3))
-    augmented = data_augmentation(inputs)
+    inputs = keras.Input(shape=IMAGE_SHAPE)
 
-    model = base_model(augmented, training=False)
+    model = base_model(inputs, training=False)
     model = layers.GlobalAveragePooling2D()(model)
     model = layers.Dense(512, activation='relu')(model)
     model = layers.Dropout(0.5)(model)
@@ -188,6 +182,16 @@ def train_single():
     model = keras.Model(inputs, model)
 
     model.summary()
+    
+    #train the top layer
+    model.compile(
+    optimizer=keras.optimizers.Adam(),
+    loss=keras.losses.BinaryCrossentropy(from_logits=True),
+    metrics=[keras.metrics.BinaryAccuracy()],
+    )
+
+    model.fit(train_images, train_labels, epochs=EPOCHS, validation_data=(
+        val_images, val_labels))
 
 
 def main():
