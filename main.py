@@ -18,7 +18,7 @@ BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
 USE_CUDA = True
-AUTOTUNE = tf.data.AUTOTUNE
+
 
 print("TensorFlow version: "+tf.__version__)
 print("Pillow version: "+PIL.__version__)
@@ -77,8 +77,9 @@ def main():
     print("Training dataset size: "+str(len(train_ds)))
     print("Validation dataset size: "+str(len(val_ds)))
 
-    train_ds = train_ds.cache().shuffle(1000).prefetch(buffer_size=AUTOTUNE)
-    val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
+    autotune = tf.data.AUTOTUNE
+    train_ds = train_ds.cache().shuffle(1000).prefetch(buffer_size=autotune)
+    val_ds = val_ds.cache().prefetch(buffer_size=autotune)
 
     print("Loading complete after " +
           str(round(time.time()-start_time, 2))+" seconds")
@@ -90,8 +91,6 @@ def main():
         tf.image.rot90(x, k=random.randint(0, 3)), y))
     dataset = dataset.map(lambda x, y: (
         tf.image.per_image_standardization(x), y))
-
-    print("Transformations applied")
 
     # create the model
     model = tf.keras.Sequential([
@@ -158,25 +157,6 @@ def main():
         plt.title(class_names[np.argmax(predictions[i])])
         plt.axis("off")
     plt.show()
-
-
-@tf.custom_gradient
-def gradient_clipping(x):
-    """ Clipping gradients to avoid exploding gradients """
-    return x, lambda dy: tf.clip_by_norm(dy, 10.0)
-
-
-def test_load(path):
-    """ Loads the dataset from the given path """
-    # get the images from the given path, resize them and run the model on them
-    # then change the file names to either bee or ant or unknown
-    print("Loading test images from "+path+" ...")
-    load_images = []
-    for image in os.listdir(path):
-        img = tf.keras.preprocessing.image.load_img(
-            path+'/'+image, color_mode='rgb', target_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]))
-        load_images.append(tf.keras.preprocessing.image.img_to_array(img))
-    return np.array(load_images)
 
 
 if __name__ == "__main__":
