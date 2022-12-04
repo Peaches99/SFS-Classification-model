@@ -1,20 +1,15 @@
 import os
-import string
 import time
-import sys
 import random
 import numpy as np
 import PIL
 import psutil
 import tensorflow as tf
-import skimage
 #import matplotlib.pyplot as plt
-from tensorflow import keras
 from keras import layers
 
 
-from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo, nvmlShutdown
-from sklearn.utils import shuffle
+from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 
 THRESHOLD = 0.95
 IMAGE_SHAPE = (224, 224, 3)
@@ -23,6 +18,7 @@ BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/hymenoptera"
 USE_CUDA = True
+AUTOTUNE = tf.data.AUTOTUNE
 
 print("TensorFlow version: "+tf.__version__)
 print("Pillow version: "+PIL.__version__)
@@ -60,15 +56,28 @@ def main():
     dataset = tf.keras.preprocessing.image_dataset_from_directory(
         DATA_DIR, labels="inferred", label_mode="categorical", class_names=None,
         color_mode="rgb", batch_size=BATCH_SIZE, image_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]),
-        shuffle=True, seed=123, validation_split=0.2, subset="training",
+        shuffle=True, seed=123,
         interpolation="bilinear",)
+
+    # split the dataset into train and validation
+    train_size = int(0.8 * len(dataset))
+
+    train_ds = dataset.take(train_size)
+    val_ds = dataset.skip(train_size)
+
+    print("Training dataset size: "+str(len(train_ds)))
+    print("Validation dataset size: "+str(len(val_ds)))
+
+    train_ds = train_ds.cache().shuffle(1000).prefetch(buffer_size=AUTOTUNE)
+    val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
 
     print("Loading complete after " +
           str(round(time.time()-start_time, 2))+" seconds")
     # print the totoal images in training and validation
-    # print the total image batches in training and validation
-    print("Total Batches in training: "+str(dataset.cardinality().numpy()))
+
     print("Class names: "+str(dataset.class_names))
+
+    class_names = dataset.class_names
 
     print("Applying transformations to the dataset...")
     dataset = dataset.map(lambda x, y: (tf.image.random_flip_left_right(x), y))
@@ -80,9 +89,23 @@ def main():
 
     print("Transformations applied")
 
-    # use dataset cache and prefetch to improve performance
-    dataset = dataset.cache()
-    dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+    # create the model
+    model = tf.keras.Sequential([
+        layers.Conv2D(128, 3, activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Conv2D(128, 3, activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Conv2D(128, 3, activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Flatten(),
+        layers.Dense(128, activation='relu'),
+        layers.Dense(len(class_names))
+    ])
+
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+        loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
+        metrics=['accuracy'])
 
     # show current memory usage
     if CUDA:
@@ -94,6 +117,31 @@ def main():
         print("Memory usage: "+str(round(process.memory_info().rss/1024/1024, 2)) +
               " MB/"+str(round(psutil.virtual_memory().total/1024/1024, 2))+" MB")
 
+    print("Starting training...")
+    start_time = time.time()
+
+    # train the model
+    model.fit(
+        train_ds,
+        epochs=EPOCHS,
+        verbose=1,
+        validation_data=val_ds,
+        callbacks=[
+            tf.keras.callbacks.EarlyStopping(
+                monitor='val_loss', patience=5, restore_best_weights=True)
+        ])
+
+    # get the final validation accuracy
+    print("Training complete after " +
+          str(round(time.time()-start_time, 4))+" seconds")
+
+    
+    val_acc = model.evaluate(val_ds)[1]
+    #save the model with the validation accuracy in the name
+    model.save("models/ant_model_"+str(round(val_acc, 2))+".h5")
+    print("Final validation accuracy: "+str(round(val_acc*100, 2))+"%")
+
+    
 
 @tf.custom_gradient
 def gradient_clipping(x):
