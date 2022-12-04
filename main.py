@@ -17,9 +17,10 @@ from sklearn.utils import shuffle
 
 THRESHOLD = 0.95
 IMAGE_SHAPE = (224, 224, 3)
-EPOCHS = 50
-BATCH_SIZE = 16
-LEARNING_RATE = 0.0001  # best current results with 0.0001
+EPOCHS = 100
+BATCH_SIZE = 32
+LEARNING_RATE = 0.0001
+DATA_DIR = "data/hymenoptera"
 
 print("TensorFlow version: "+tf.__version__)
 print("Pillow version: "+PIL.__version__)
@@ -38,193 +39,32 @@ if len(physical_devices) > 0:
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
-class MemoryCallback(tf.keras.callbacks.Callback):
-    """A callback that stops the model training when the validation accuracy reaches a certain threshhold"""
-
-    def __init__(self):
-        """initializes the callback"""
-        self.plateau_threshhold = 10
-        self.plateau_count = 0
-        self.last_acc = 0.00
-        self.early_end = False
-        self.start_memory = 0
-        self.device_handle = None
-        self.start_time = time.time()
-        self.best_model = None
-
-    def on_train_begin(self, logs=None):
-        """starts the timer and gets the device handle"""
-        if CUDA:
-            self.device_handle = nvmlDeviceGetHandleByIndex(0)
-
-    def on_train_end(self, logs=None):
-        """prints the time and memory used"""
-        if CUDA:
-            end_memory = nvmlDeviceGetMemoryInfo(self.device_handle).used
-            print(f"Memory at end: {end_memory//1024//1024} MB")
-            used_memory = (end_memory-self.start_memory)//1024//1024
-            print(f"Total memory used: {used_memory} MB")
-            sys.stdout.flush()
-            nvmlShutdown()
-        if self.early_end:
-            print("\n\nReached Threshhold accuracy or plateaued, stopping training\n\n")
-        elapsed = time.time()-self.start_time
-        # save the best model
-        self.best_model.save("models/model.h5")
-        print("Model Accuracy: " +
-              str(self.best_model.history.history['val_accuracy'][-1]))
-        print(f"Total time: {elapsed} seconds")
-        print(f"Average time per epoch: {elapsed/EPOCHS} seconds")
-
-    def on_epoch_end(self, epoch, logs=None):
-        """checks the accuracy and memory usage"""
-        if CUDA:
-            nvmlInit()
-            self.start_memory = nvmlDeviceGetMemoryInfo(
-                self.device_handle).used
-            # print the current during the last epoch
-        # safe the current best model
-        if logs["val_accuracy"] > self.last_acc:
-            self.last_acc = logs["val_accuracy"]
-            self.best_model = self.model
-            nvmlShutdown()
-
-        current_acc = round(logs.get('val_accuracy'), 3)
-
-        if current_acc == self.last_acc:
-            self.plateau_count += 1
-
-        if logs.get('val_accuracy') > THRESHOLD and logs.get('accuracy') > THRESHOLD or self.plateau_count == self.plateau_threshhold:
-            self.early_end = True
-            self.model.stop_training = True
-
-        self.last_acc = round(logs.get('val_accuracy'), 3)
-
-    def on_epoch_begin(self, epoch, logs=None):
-        if CUDA:
-            print(f"Memory usage: {(self.start_memory//1024//1024)} MB")
-
-
-def load(path):
-    """Loads the dataset from the given path"""
-
-    print("Loading data from "+path+" ...")
-    load_images = []
-    load_labels = []
-
-    for folder in os.listdir(path):
-        if folder == 'train' or folder == 'val':
-            for subfolder in os.listdir(path+'/'+folder):
-                if subfolder == 'ants' or subfolder == 'bees':
-                    for image in os.listdir(path+'/'+folder+'/'+subfolder):
-                        img = tf.keras.preprocessing.image.load_img(
-                            path+'/'+folder+'/'+subfolder+'/'+image, color_mode='rgb', target_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]))
-                        load_images.append(
-                            tf.keras.preprocessing.image.img_to_array(img))
-                        if subfolder == 'ants':
-                            load_labels.append(0)
-                        else:
-                            load_labels.append(1)
-    print("Images: "+str(len(load_images)))
-    return np.array(load_images), np.array(load_labels)
-
-
-def prepare(images, labels):
-    """Prepares the dataset for training"""
-
-    images = images.astype('float32')
-    labels = labels.astype('float32')
-
-    # shuffle the data
-    images, labels = shuffle(images, labels)
-
-    # normalize the data
-    images /= 255.0
-
-    # plt.figure(figsize=(10, 10))
-    # for i, image in enumerate(images[:9]):
-    #     ax = plt.subplot(3, 3, i + 1)
-    #     plt.imshow(image)
-    #     plt.title(int(labels[i]))
-    #     plt.axis("off")
-    # plt.show()
-
-    # add noise to the images
-    images = skimage.util.random_noise(
-        images, mode='gaussian', seed=None, clip=True)
-    # randomly flip the images
-    images = tf.image.random_flip_left_right(images)
-    images = tf.image.random_flip_up_down(images)
-
-    # split the data into training and validation with a 80/20 split
-    split = int(len(images)*0.8)
-    train_images = images[:split]
-    train_labels = labels[:split]
-    val_images = images[split:]
-    val_labels = labels[split:]
-
-    return train_images, train_labels, val_images, val_labels
-
-
-def train_single():
-    """ trains the model on the dataset"""
-
-    # load the data
-    images, labels = load("data/hymenoptera")
-    train_images, train_labels, val_images, val_labels = prepare(
-        images, labels)
-
-    # make a basemodel using resnet50
-    base_model = keras.applications.Xception(
-        weights="imagenet",  # Load weights pre-trained on ImageNet.
-        input_shape=IMAGE_SHAPE,
-        include_top=False,
-    )  # Do not include the ImageNet classifier at the top.
-
-    # freeze the base model
-    base_model.trainable = False
-
-    inputs = keras.Input(shape=IMAGE_SHAPE)
-
-    model = base_model(inputs, training=False)
-    model = layers.GlobalAveragePooling2D()(model)
-    model = layers.Dense(512, activation='relu')(model)
-    model = layers.Dropout(0.5)(model)
-    model = layers.Dense(1, activation='sigmoid')(model)
-    model = keras.Model(inputs, model)
-
-    # train the top layer
-    model.compile(
-        optimizer=keras.optimizers.Adam(),
-        loss=keras.losses.BinaryCrossentropy(),
-        metrics=[keras.metrics.BinaryAccuracy()],
-    )
-
-    model.fit(train_images, train_labels, epochs=EPOCHS, validation_data=(
-        val_images, val_labels))
-
-    # Fine tune the model
-
-    base_model.trainable = True
-    # model.summary()
-
-    model.compile(
-        optimizer=keras.optimizers.Adam(1e-5),  # Low learning rate
-        loss=keras.losses.BinaryCrossentropy(),
-        metrics=[keras.metrics.BinaryAccuracy()],
-    )
-
-    model.fit(train_images, train_labels, epochs=EPOCHS, validation_data=(
-        val_images, val_labels))
-
-    # save the model
-    model.save("models/model.h5", save_format="h5", overwrite=True)
-
-
 def main():
     """Main function"""
-    train_single()
-    test_classify("test_images/")
+    # measure the time
+    start_time = time.time()
+
+    print("Loading images from "+DATA_DIR+" ...")
+    dataset = tf.keras.preprocessing.image_dataset_from_directory(
+        DATA_DIR, labels="inferred", label_mode="categorical", class_names=None,
+        color_mode="rgb", batch_size=BATCH_SIZE, image_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]),
+        shuffle=True, seed=123, validation_split=0.2, subset="training",
+        interpolation="bilinear",)
+
+    print("Loading complete after "+str(round(time.time()-start_time, 2))+" seconds")
+    # print the totoal images in training and validation
+    # print the total image batches in training and validation
+    print("Total Batches in training: "+str(dataset.cardinality().numpy()))
+    print("Class names: "+str(dataset.class_names))
+
+    print("Applying transformations to the dataset...")
+    dataset = dataset.map(lambda x, y: (tf.image.random_flip_left_right(x), y))
+    dataset = dataset.map(lambda x, y: (tf.image.random_flip_up_down(x), y))
+    dataset = dataset.map(lambda x, y: (
+        tf.image.rot90(x, k=random.randint(0, 3)), y))
+    dataset = dataset.map(lambda x, y: (
+        tf.image.per_image_standardization(x), y))
+    
 
 
 @tf.custom_gradient
@@ -244,35 +84,6 @@ def test_load(path):
             path+'/'+image, color_mode='rgb', target_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]))
         load_images.append(tf.keras.preprocessing.image.img_to_array(img))
     return np.array(load_images)
-
-
-def test_classify(path):
-    """Tests the model on the images in the given path"""
-    print("Testing model on images in "+path+" ...")
-
-    model = tf.keras.models.load_model('models/model.h5')
-    # rename each image to a random number
-    for index, image in enumerate(os.listdir(path)):
-        # make a random 4 character string
-        random_string = ''.join(random.choices(
-            string.ascii_uppercase + string.digits, k=4))
-        os.rename(path+image, path+random_string+".jpg")
-    loaded_images = test_load(path)
-    # get the predictions
-    predictions = model.predict(loaded_images)
-    # round the predictions to 4 decimal places
-    predictions = np.round(predictions, 4)
-    
-    print(predictions)
-    # rename each image to either bee or ant
-    print("Predictions:")
-    for index, image in enumerate(os.listdir(path)):
-        if predictions[index] > 0.5:
-            os.rename(path+image, path+"ant_"+image)
-            print("ant_"+image)
-        else:
-            os.rename(path+image, path+"bee_"+image)
-            print("bee_"+image)
 
 
 if __name__ == "__main__":
