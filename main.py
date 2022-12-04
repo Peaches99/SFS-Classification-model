@@ -12,11 +12,11 @@ from keras import layers
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 
 THRESHOLD = 0.99
-IMAGE_SHAPE = (300, 300, 3)
+IMAGE_SHAPE = (270, 270, 3)
 EPOCHS = 100
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
-DATA_DIR = "data/hymenoptera"
+DATA_DIR = "data/"
 USE_CUDA = True
 AUTOTUNE = tf.data.AUTOTUNE
 
@@ -63,7 +63,7 @@ def main():
 
     class_names = dataset.class_names
     print("Class names: "+str(class_names))
-    
+
     # get 9 random images from the dataset
     for images, labels in dataset.take(1):
         for i in range(9):
@@ -102,7 +102,8 @@ def main():
         layers.Conv2D(128, 3, activation='relu'),
         layers.MaxPooling2D(),
         layers.Flatten(),
-        layers.Dense(128, activation='relu'),
+        layers.Dense(256, activation='relu'),
+        layers.Dense(256, activation='relu'),
         layers.Dense(len(class_names))
     ])
 
@@ -132,7 +133,7 @@ def main():
         validation_data=val_ds,
         callbacks=[
             tf.keras.callbacks.EarlyStopping(
-                monitor='val_loss', patience=10, restore_best_weights=True)
+                monitor='val_loss', patience=5, restore_best_weights=True)
         ])
 
     # get the final validation accuracy
