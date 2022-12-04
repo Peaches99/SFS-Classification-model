@@ -11,9 +11,8 @@ from keras import layers
 
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 
-THRESHOLD = 0.99
-IMAGE_SHAPE = (270, 270, 3)
-EPOCHS = 100
+IMAGE_SHAPE = (324, 324, 3)
+EPOCHS = 20
 BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
@@ -64,15 +63,12 @@ def main():
     class_names = dataset.class_names
     print("Class names: "+str(class_names))
 
-    # get 9 random images from the dataset
-    for images, labels in dataset.take(1):
-        for i in range(9):
-            example_images = images
-
     train_size = int(0.8 * len(dataset))
 
     train_ds = dataset.take(train_size)
     val_ds = dataset.skip(train_size)
+
+    example_images = val_ds.take(9)
 
     print("Training dataset size: "+str(len(train_ds)))
     print("Validation dataset size: "+str(len(val_ds)))
@@ -131,17 +127,25 @@ def main():
         verbose=1,
         validation_data=val_ds,
         callbacks=[
-            tf.keras.callbacks.EarlyStopping(
-                monitor='val_loss', patience=5, restore_best_weights=True)
+            tf.keras.callbacks.ModelCheckpoint(
+                filepath='models/ant_model.h5',
+                #save using the best validation accuracy
+                monitor='val_accuracy',
+                verbose=0,
+                save_best_only=True,
+                save_weights_only=False,
+                mode='max',
+                save_freq='epoch')
         ])
 
     # get the final validation accuracy
     print("Training complete after " +
           str(round(time.time()-start_time, 4))+" seconds")
 
-    val_acc = model.evaluate(val_ds)[1]
+    # load models/model
+    final_model = tf.keras.models.load_model('models/ant_model.h5')
+    val_acc = final_model.evaluate(val_ds)[1]
     # save the model with the validation accuracy in the name
-    model.save("models/ant_model_"+str(round(val_acc, 4))+".h5")
     print("Final validation accuracy: "+str(round(val_acc*100, 2))+"%")
 
     # use the example images to make predictions
@@ -151,13 +155,12 @@ def main():
 
     # show the predictions using matplotlib
     plt.figure(figsize=(10, 10))
-    for i in range(9):
-        ax = plt.subplot(3, 3, i + 1)
-        plt.imshow(example_images[i].numpy().astype("uint8"))
-        plt.title(class_names[np.argmax(predictions[i])])
-        plt.axis("off")
+    for images, labels in example_images:
+        for i in range(9):
+            ax = plt.subplot(3, 3, i+1)
+            plt.imshow(images[i].numpy().astype("uint8"))
+            plt.title(class_names[np.argmax(predictions[i])])
+            plt.axis("off")
     plt.show()
-
-
 if __name__ == "__main__":
     main()
