@@ -5,7 +5,7 @@ import numpy as np
 import PIL
 import psutil
 import tensorflow as tf
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 from keras import layers
 
 
@@ -13,7 +13,7 @@ from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 
 THRESHOLD = 0.95
 IMAGE_SHAPE = (224, 224, 3)
-EPOCHS = 100
+EPOCHS = 10
 BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/hymenoptera"
@@ -52,14 +52,28 @@ def main():
     # measure the time
     start_time = time.time()
 
+    rand_seed = random.randint(0, 1000)
+
     print("Loading images from "+DATA_DIR+" ...")
     dataset = tf.keras.preprocessing.image_dataset_from_directory(
         DATA_DIR, labels="inferred", label_mode="categorical", class_names=None,
         color_mode="rgb", batch_size=BATCH_SIZE, image_size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1]),
-        shuffle=True, seed=123,
+        shuffle=True, seed=rand_seed,
         interpolation="bilinear",)
 
-    # split the dataset into train and validation
+    class_names = dataset.class_names
+    print("Class names: "+str(class_names))
+    # show 10 images from the dataset
+    plt.figure(figsize=(10, 10))
+    for images, labels in dataset.take(1):
+        for i in range(9):
+            ax = plt.subplot(3, 3, i + 1)
+            plt.imshow(images[i].numpy().astype("uint8"))
+            plt.axis("off")
+            #
+            example_images = images
+    #plt.show()
+
     train_size = int(0.8 * len(dataset))
 
     train_ds = dataset.take(train_size)
@@ -73,11 +87,6 @@ def main():
 
     print("Loading complete after " +
           str(round(time.time()-start_time, 2))+" seconds")
-    # print the totoal images in training and validation
-
-    print("Class names: "+str(dataset.class_names))
-
-    class_names = dataset.class_names
 
     print("Applying transformations to the dataset...")
     dataset = dataset.map(lambda x, y: (tf.image.random_flip_left_right(x), y))
@@ -135,13 +144,25 @@ def main():
     print("Training complete after " +
           str(round(time.time()-start_time, 4))+" seconds")
 
-    
     val_acc = model.evaluate(val_ds)[1]
-    #save the model with the validation accuracy in the name
-    model.save("models/ant_model_"+str(round(val_acc, 2))+".h5")
+    # save the model with the validation accuracy in the name
+    model.save("models/ant_model_"+str(round(val_acc, 4))+".h5")
     print("Final validation accuracy: "+str(round(val_acc*100, 2))+"%")
 
-    
+    # use the example images to make predictions
+    print("Making predictions...")
+    predictions = model.predict(example_images)
+    print("Predictions complete")
+
+    # show the predictions using matplotlib
+    plt.figure(figsize=(10, 10))
+    for i in range(9):
+        ax = plt.subplot(3, 3, i + 1)
+        plt.imshow(example_images[i].numpy().astype("uint8"))
+        plt.title(class_names[np.argmax(predictions[i])])
+        plt.axis("off")
+    plt.show()
+
 
 @tf.custom_gradient
 def gradient_clipping(x):
