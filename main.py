@@ -11,9 +11,9 @@ from keras import layers
 
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 
-THRESHOLD = 0.95
-IMAGE_SHAPE = (224, 224, 3)
-EPOCHS = 10
+THRESHOLD = 0.99
+IMAGE_SHAPE = (300, 300, 3)
+EPOCHS = 100
 BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/hymenoptera"
@@ -63,16 +63,11 @@ def main():
 
     class_names = dataset.class_names
     print("Class names: "+str(class_names))
-    # show 10 images from the dataset
-    plt.figure(figsize=(10, 10))
+    
+    # get 9 random images from the dataset
     for images, labels in dataset.take(1):
         for i in range(9):
-            ax = plt.subplot(3, 3, i + 1)
-            plt.imshow(images[i].numpy().astype("uint8"))
-            plt.axis("off")
-            #
             example_images = images
-    #plt.show()
 
     train_size = int(0.8 * len(dataset))
 
@@ -137,7 +132,7 @@ def main():
         validation_data=val_ds,
         callbacks=[
             tf.keras.callbacks.EarlyStopping(
-                monitor='val_loss', patience=5, restore_best_weights=True)
+                monitor='val_loss', patience=10, restore_best_weights=True)
         ])
 
     # get the final validation accuracy
