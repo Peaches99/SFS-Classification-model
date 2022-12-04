@@ -5,6 +5,7 @@ import sys
 import random
 import numpy as np
 import PIL
+import psutil
 import tensorflow as tf
 import skimage
 #import matplotlib.pyplot as plt
@@ -21,9 +22,12 @@ EPOCHS = 100
 BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/hymenoptera"
+USE_CUDA = True
 
 print("TensorFlow version: "+tf.__version__)
 print("Pillow version: "+PIL.__version__)
+
+process = psutil.Process(os.getpid())
 
 if tf.test.is_built_with_cuda():
     print("CUDA is available")
@@ -32,6 +36,14 @@ if tf.test.is_built_with_cuda():
 else:
     print("CUDA is NOT available")
     CUDA = False
+
+# if use_cuda is set to False disable GPU
+if USE_CUDA and CUDA:
+    print("Using GPU")
+else:
+    print("Using CPU")
+    CUDA = False
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -51,7 +63,8 @@ def main():
         shuffle=True, seed=123, validation_split=0.2, subset="training",
         interpolation="bilinear",)
 
-    print("Loading complete after "+str(round(time.time()-start_time, 2))+" seconds")
+    print("Loading complete after " +
+          str(round(time.time()-start_time, 2))+" seconds")
     # print the totoal images in training and validation
     # print the total image batches in training and validation
     print("Total Batches in training: "+str(dataset.cardinality().numpy()))
@@ -64,7 +77,22 @@ def main():
         tf.image.rot90(x, k=random.randint(0, 3)), y))
     dataset = dataset.map(lambda x, y: (
         tf.image.per_image_standardization(x), y))
-    
+
+    print("Transformations applied")
+
+    # use dataset cache and prefetch to improve performance
+    dataset = dataset.cache()
+    dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+
+    # show current memory usage
+    if CUDA:
+        handle = nvmlDeviceGetHandleByIndex(0)
+        meminfo = nvmlDeviceGetMemoryInfo(handle)
+        print("GPU Memory usage: "+str(round(meminfo.used/1024/1024, 2)) +
+              " MB/"+str(round(meminfo.total/1024/1024, 2))+" MB")
+    else:
+        print("Memory usage: "+str(round(process.memory_info().rss/1024/1024, 2)) +
+              " MB/"+str(round(psutil.virtual_memory().total/1024/1024, 2))+" MB")
 
 
 @tf.custom_gradient
