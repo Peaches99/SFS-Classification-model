@@ -11,9 +11,9 @@ from keras import layers
 
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 
-IMAGE_SHAPE = (324, 324, 3)
-EPOCHS = 20
-BATCH_SIZE = 16
+IMAGE_SHAPE = (224, 224, 3)
+EPOCHS = 50
+BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
 USE_CUDA = True
@@ -90,15 +90,12 @@ def main():
 
     # create the model
     model = tf.keras.Sequential([
-        layers.Conv2D(128, 3, activation='relu'),
-        layers.MaxPooling2D(),
-        layers.Conv2D(128, 3, activation='relu'),
-        layers.MaxPooling2D(),
-        layers.Conv2D(128, 3, activation='relu'),
-        layers.MaxPooling2D(),
-        layers.Flatten(),
-        layers.Dense(256, activation='relu'),
-        layers.Dense(256, activation='relu'),
+        # use vgg16 as the base model
+        tf.keras.applications.VGG16(
+            include_top=False, weights="imagenet", input_shape=IMAGE_SHAPE),
+        layers.GlobalAveragePooling2D(),
+        layers.Dense(512, activation="relu"),
+        layers.Dropout(0.2),
         layers.Dense(len(class_names))
     ])
 
@@ -129,7 +126,7 @@ def main():
         callbacks=[
             tf.keras.callbacks.ModelCheckpoint(
                 filepath='models/ant_model.h5',
-                #save using the best validation accuracy
+                # save using the best validation accuracy
                 monitor='val_accuracy',
                 verbose=0,
                 save_best_only=True,
@@ -162,5 +159,10 @@ def main():
             plt.title(class_names[np.argmax(predictions[i])])
             plt.axis("off")
     plt.show()
+
+    example_acc = model.evaluate(example_images)
+    print("Example accuracy: "+str(round(example_acc[1]*100, 2))+"%")
+
+
 if __name__ == "__main__":
     main()
