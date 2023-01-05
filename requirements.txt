@@ -1,4 +1,5 @@
 fastapi==0.88.0
+matplotlib==3.6.2
 Pillow==9.4.0
 psutil==5.9.4
 pynvml==11.4.1
