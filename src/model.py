@@ -173,7 +173,7 @@ def main():
     test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
 
-    # model.save("model")
+    model.save("./models/"+"sfs_model_" + str(round(test_acc, 2)) + ".h5")
 
     # plt.plot(history.history["accuracy"], label="accuracy")
     # plt.plot(history.history["val_accuracy"], label="val_accuracy")
