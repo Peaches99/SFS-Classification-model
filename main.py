@@ -13,8 +13,8 @@ import tensorflow as tf
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (300, 300, 3)
-EPOCHS = 15
-BATCH_SIZE = 16
+EPOCHS = 20
+BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
 USE_CUDA = True
@@ -183,11 +183,11 @@ def main():
     print("\nTest accuracy:", test_acc)
 
     # predict 9 random images from the validation dataset
-    example_images = val_ds.take(9)
+    example_images = val_ds.take(18)
     for images, labels in example_images:
         for i in range(18):
             image = images[i].numpy().astype("uint8")
-            plt.subplot(6, 3, i + 1)
+            plt.subplot(3, 6, i + 1)
             plt.xticks([])
             plt.yticks([])
             plt.grid(False)
@@ -195,6 +195,7 @@ def main():
 
             # predict
             prediction = model.predict(np.array([image]))
+
             # Get the probability in percent and put it next to the predicted label
             probability = prediction[0].max() * 100
             prediction = prediction[0].argmax()
