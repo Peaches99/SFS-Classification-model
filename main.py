@@ -13,7 +13,7 @@ import tensorflow as tf
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (300, 300, 3)
-EPOCHS = 20
+EPOCHS = 15
 BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
@@ -125,6 +125,7 @@ def make_model(class_names):
 
     return model
 
+
 def calculate_class_weights(dataset, class_names):
     """Calculate the class weights for the dataset."""
     class_weights = {}
@@ -137,15 +138,14 @@ def calculate_class_weights(dataset, class_names):
             class_weights[label] += 1
     for i in range(len(class_names)):
         class_weights[i] = 1 / class_weights[i]
-    print("Class weights: " + str(class_weights))
-    
+
     return class_weights
 
 
 def main():
     """Main function."""
     train_ds, val_ds, class_names = make_dataset()
-    
+
     class_weights = calculate_class_weights(train_ds, class_names)
     print("Class weights: " + str(class_weights))
 
@@ -178,11 +178,30 @@ def main():
 
     # evaluate model
 
-    eval = model.evaluate(val_ds, verbose=2)
-
-    test_acc = eval[1]
-
+    evaluated = model.evaluate(val_ds, verbose=2)
+    test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
+
+    # predict 9 random images from the validation dataset
+    example_images = val_ds.take(9)
+    for images, labels in example_images:
+        for i in range(18):
+            image = images[i].numpy().astype("uint8")
+            plt.subplot(6, 3, i + 1)
+            plt.xticks([])
+            plt.yticks([])
+            plt.grid(False)
+            plt.imshow(image, cmap=plt.cm.binary)
+
+            # predict
+            prediction = model.predict(np.array([image]))
+            # Get the probability in percent and put it next to the predicted label
+            probability = prediction[0].max() * 100
+            prediction = prediction[0].argmax()
+            prediction = class_names[prediction]
+            plt.xlabel(prediction + " (" + str(round(probability, 2)) + "%)")
+
+    plt.show()
 
 
 if __name__ == "__main__":
