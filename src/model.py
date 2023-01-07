@@ -12,9 +12,9 @@ import tensorflow as tf
 
 from pynvml import nvmlInit
 
-IMAGE_SHAPE = (300, 300, 3)
-EPOCHS = 20
-BATCH_SIZE = 32
+IMAGE_SHAPE = (270, 270, 3)
+EPOCHS = 40
+BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
 USE_CUDA = True
@@ -33,7 +33,6 @@ else:
     print("CUDA is NOT available")
     CUDA = False
 
-# if use_cuda is set to False disable GPU
 if USE_CUDA and CUDA:
     print("Using GPU")
 else:
@@ -109,26 +108,6 @@ def make_dataset():
     return train_ds, val_ds, test_ds, class_names
 
 
-def make_model(class_names):
-    """Create a tf.keras.Model."""
-
-    base_model = tf.keras.applications.VGG19(
-        include_top=False, weights="imagenet", input_shape=IMAGE_SHAPE
-    )
-
-    base_model.trainable = False
-
-    model = tf.keras.Sequential(
-        [
-            base_model,
-            tf.keras.layers.GlobalAveragePooling2D(),
-            tf.keras.layers.Dense(len(class_names), activation="softmax"),
-        ]
-    )
-
-    return model
-
-
 def calculate_class_weights(dataset, class_names):
     """Calculate the class weights for the dataset."""
     class_weights = {}
@@ -150,9 +129,26 @@ def main():
     train_ds, val_ds, test_ds, class_names = make_dataset()
 
     class_weights = calculate_class_weights(train_ds, class_names)
-    print("Class weights: " + str(class_weights))
 
-    model = make_model(class_names)
+    base_model = tf.keras.applications.VGG19(
+        include_top=False, weights="imagenet", input_shape=IMAGE_SHAPE
+    )
+
+    base_model.trainable = False
+
+    model = tf.keras.Sequential(
+        [
+            base_model,
+            tf.keras.layers.GlobalAveragePooling2D(),
+            tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(256, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(len(class_names), activation="softmax"),
+        ]
+    )
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
@@ -169,11 +165,26 @@ def main():
         class_weight=class_weights,
     )
 
+    # train a second time with the base model trainable
+    base_model.trainable = True
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.000001),
+        loss=tf.keras.losses.CategoricalCrossentropy(),
+        metrics=["accuracy"],
+    )
+
+    model.fit(
+        train_ds,
+        epochs=10,
+        validation_data=val_ds,
+        class_weight=class_weights,
+    )
+
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
 
-    model.save("./models/"+"sfs_model_" + str(round(test_acc, 2)) + ".h5")
+    model.save("./models/" + "sfs_model_" + str(round(test_acc, 2)) + ".h5")
 
     # plt.plot(history.history["accuracy"], label="accuracy")
     # plt.plot(history.history["val_accuracy"], label="val_accuracy")
