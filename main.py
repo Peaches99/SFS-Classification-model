@@ -4,6 +4,7 @@ import os
 import random
 import time
 import PIL
+import numpy as np
 from matplotlib import pyplot as plt
 import psutil
 import tensorflow as tf
@@ -11,9 +12,9 @@ import tensorflow as tf
 
 from pynvml import nvmlInit
 
-IMAGE_SHAPE = (224, 224, 3)
+IMAGE_SHAPE = (300, 300, 3)
 EPOCHS = 20
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
 USE_CUDA = True
@@ -124,10 +125,29 @@ def make_model(class_names):
 
     return model
 
+def calculate_class_weights(dataset, class_names):
+    """Calculate the class weights for the dataset."""
+    class_weights = {}
+    for i in range(len(class_names)):
+        class_weights[i] = 0
+    for images, labels in dataset:
+        for label in labels:
+            label = label.numpy()
+            label = label.argmax()
+            class_weights[label] += 1
+    for i in range(len(class_names)):
+        class_weights[i] = 1 / class_weights[i]
+    print("Class weights: " + str(class_weights))
+    
+    return class_weights
+
 
 def main():
     """Main function."""
     train_ds, val_ds, class_names = make_dataset()
+    
+    class_weights = calculate_class_weights(train_ds, class_names)
+    print("Class weights: " + str(class_weights))
 
     model = make_model(class_names)
 
@@ -143,17 +163,26 @@ def main():
         train_ds,
         epochs=EPOCHS,
         validation_data=val_ds,
+        class_weight=class_weights,
     )
 
     # model.save("model")
 
-    plt.plot(history.history["accuracy"], label="accuracy")
-    plt.plot(history.history["val_accuracy"], label="val_accuracy")
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
-    plt.ylim([0.5, 1])
-    plt.legend(loc="lower right")
-    plt.show()
+    # plt.plot(history.history["accuracy"], label="accuracy")
+    # plt.plot(history.history["val_accuracy"], label="val_accuracy")
+    # plt.xlabel("Epoch")
+    # plt.ylabel("Accuracy")
+    # plt.ylim([0.5, 1])
+    # plt.legend(loc="lower right")
+    # plt.show()
+
+    # evaluate model
+
+    eval = model.evaluate(val_ds, verbose=2)
+
+    test_acc = eval[1]
+
+    print("\nTest accuracy:", test_acc)
 
 
 if __name__ == "__main__":
