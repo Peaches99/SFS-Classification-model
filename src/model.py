@@ -70,13 +70,16 @@ def make_dataset():
     class_names = dataset.class_names
     print("Class names: " + str(class_names))
 
-    train_size = int(0.8 * len(dataset))
-
-    train_ds = dataset.take(train_size)
-    val_ds = dataset.skip(train_size)
+    # split the dataset into train, validation and test
+    train_ds = dataset.take(int(len(dataset) * 0.7))
+    val_ds = dataset.skip(int(len(dataset) * 0.7))
+    val_ds = val_ds.take(int(len(val_ds) * 0.6))
+    test_ds = dataset.skip(int(len(dataset) * 0.7))
+    test_ds = test_ds.skip(int(len(test_ds) * 0.6))
 
     print("Training dataset size: " + str(len(train_ds)))
     print("Validation dataset size: " + str(len(val_ds)))
+    print("Test dataset size: " + str(len(test_ds)))
 
     autotune = tf.data.AUTOTUNE
     train_ds = train_ds.cache().shuffle(1000).prefetch(buffer_size=autotune)
@@ -86,7 +89,7 @@ def make_dataset():
         "Loading complete after " + str(round(time.time() - start_time, 2)) + " seconds"
     )
 
-    example_images = val_ds.take(9)
+    # example_images = val_ds.take(9)
     # show 9 example images and labels
     # for images, labels in example_images:
     #     for i in range(9):
@@ -103,7 +106,7 @@ def make_dataset():
 
     # plt.show()
 
-    return train_ds, val_ds, class_names
+    return train_ds, val_ds, test_ds, class_names
 
 
 def make_model(class_names):
@@ -144,7 +147,7 @@ def calculate_class_weights(dataset, class_names):
 
 def main():
     """Main function."""
-    train_ds, val_ds, class_names = make_dataset()
+    train_ds, val_ds, test_ds, class_names = make_dataset()
 
     class_weights = calculate_class_weights(train_ds, class_names)
     print("Class weights: " + str(class_weights))
@@ -159,12 +162,16 @@ def main():
 
     model.summary()
 
-    history = model.fit(
+    model.fit(
         train_ds,
         epochs=EPOCHS,
         validation_data=val_ds,
         class_weight=class_weights,
     )
+
+    evaluated = model.evaluate(test_ds, verbose=2)
+    test_acc = evaluated[1]
+    print("\nTest accuracy:", test_acc)
 
     # model.save("model")
 
@@ -176,33 +183,26 @@ def main():
     # plt.legend(loc="lower right")
     # plt.show()
 
-    # evaluate model
+    # example_images = test_ds.take(18)
+    # for images, labels in example_images:
+    #     for i in range(18):
+    #         image = images[i].numpy().astype("uint8")
+    #         plt.subplot(3, 6, i + 1)
+    #         plt.xticks([])
+    #         plt.yticks([])
+    #         plt.grid(False)
+    #         plt.imshow(image, cmap=plt.cm.binary)
 
-    evaluated = model.evaluate(val_ds, verbose=2)
-    test_acc = evaluated[1]
-    print("\nTest accuracy:", test_acc)
+    #         # predict
+    #         prediction = model.predict(np.array([image]))
 
-    # predict 9 random images from the validation dataset
-    example_images = val_ds.take(18)
-    for images, labels in example_images:
-        for i in range(18):
-            image = images[i].numpy().astype("uint8")
-            plt.subplot(3, 6, i + 1)
-            plt.xticks([])
-            plt.yticks([])
-            plt.grid(False)
-            plt.imshow(image, cmap=plt.cm.binary)
+    #         # Get the probability in percent and put it next to the predicted label
+    #         probability = prediction[0].max() * 100
+    #         prediction = prediction[0].argmax()
+    #         prediction = class_names[prediction]
+    #         plt.xlabel(prediction + " (" + str(round(probability, 2)) + "%)")
 
-            # predict
-            prediction = model.predict(np.array([image]))
-
-            # Get the probability in percent and put it next to the predicted label
-            probability = prediction[0].max() * 100
-            prediction = prediction[0].argmax()
-            prediction = class_names[prediction]
-            plt.xlabel(prediction + " (" + str(round(probability, 2)) + "%)")
-
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":
