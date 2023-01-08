@@ -13,7 +13,7 @@ import tensorflow as tf
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (270, 270, 3)
-EPOCHS = 40
+EPOCHS = 60
 BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
@@ -136,8 +136,7 @@ def main():
 
     base_model.trainable = False
 
-    model = tf.keras.Sequential(
-        [
+    model = tf.keras.Sequential([
             base_model,
             tf.keras.layers.GlobalAveragePooling2D(),
             tf.keras.layers.Dense(512, activation="relu"),
@@ -147,8 +146,7 @@ def main():
             tf.keras.layers.Dense(256, activation="relu"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
-        ]
-    )
+        ])
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
@@ -168,14 +166,14 @@ def main():
     # train a second time with the base model trainable
     base_model.trainable = True
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.000001),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
         loss=tf.keras.losses.CategoricalCrossentropy(),
         metrics=["accuracy"],
     )
 
     model.fit(
         train_ds,
-        epochs=10,
+        epochs=20,
         validation_data=val_ds,
         class_weight=class_weights,
     )
