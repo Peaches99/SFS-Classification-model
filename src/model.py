@@ -8,14 +8,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 import psutil
 import tensorflow as tf
-
-
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (270, 270, 3)
 EPOCHS = 60
 BATCH_SIZE = 16
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.001
 DATA_DIR = "data/"
 USE_CUDA = True
 
@@ -138,13 +136,14 @@ def main():
 
     model = tf.keras.Sequential([
             base_model,
+            tf.keras.layers.BatchNormalization(renorm=True),
             tf.keras.layers.GlobalAveragePooling2D(),
             tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(256, activation="relu"),
-            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dropout(0.5),
+            tf.keras.layers.Dense(256, activation="relu"),
+            tf.keras.layers.Dense(128, activation="softmax"),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
         ])
 
