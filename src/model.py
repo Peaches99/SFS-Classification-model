@@ -135,6 +135,23 @@ def main():
     val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y))
     test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
 
+    # make a custom callback that saves the best model and replaces it if a better one appears
+    # dont actually save the best model as a file but only save it at the end
+
+    class SaveBestModel(tf.keras.callbacks.Callback):
+        def __init__(self):
+            self.best_val_acc = 0
+            self.best_model = None
+
+        def on_epoch_end(self, epoch, logs=None):
+            if logs["val_accuracy"] > self.best_val_acc:
+                self.best_val_acc = logs["val_accuracy"]
+                self.best_model = self.model
+
+        def on_train_end(self, logs=None):
+            self.model = self.best_model
+
+    save_best_model = SaveBestModel()
 
     base_model = tf.keras.applications.VGG19(
         include_top=False, weights="imagenet", input_shape=IMAGE_SHAPE
@@ -149,7 +166,7 @@ def main():
             tf.keras.layers.GlobalAveragePooling2D(),
             tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(128, activation="softmax"),
+            tf.keras.layers.Dense(256, activation="softmax"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
         ]
@@ -168,7 +185,10 @@ def main():
         epochs=EPOCHS,
         validation_data=val_ds,
         class_weight=class_weights,
+        callbacks=[save_best_model],
     )
+
+    model = save_best_model.best_model
 
     # train a second time with the base model trainable
     base_model.trainable = True
@@ -183,7 +203,10 @@ def main():
         epochs=10,
         validation_data=val_ds,
         class_weight=class_weights,
+        callbacks=[save_best_model],
     )
+
+    model = save_best_model.best_model
 
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
