@@ -135,7 +135,6 @@ def main():
     val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y))
     test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
 
-    print("Hola du stinkst - Diana")
 
     base_model = tf.keras.applications.VGG19(
         include_top=False, weights="imagenet", input_shape=IMAGE_SHAPE
@@ -181,7 +180,7 @@ def main():
 
     model.fit(
         train_ds,
-        epochs=20,
+        epochs=10,
         validation_data=val_ds,
         class_weight=class_weights,
     )
