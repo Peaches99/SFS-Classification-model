@@ -11,9 +11,9 @@ import tensorflow as tf
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (270, 270, 3)
-EPOCHS = 60
+EPOCHS = 10
 BATCH_SIZE = 16
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
 USE_CUDA = True
 
@@ -128,24 +128,33 @@ def main():
 
     class_weights = calculate_class_weights(train_ds, class_names)
 
+    # preprocess the dataset for vgg19
+    preprocess_input = tf.keras.applications.vgg19.preprocess_input
+
+    train_ds = train_ds.map(lambda x, y: (preprocess_input(x), y))
+    val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y))
+    test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
+
+    print("Hola du stinkst - Diana")
+
     base_model = tf.keras.applications.VGG19(
         include_top=False, weights="imagenet", input_shape=IMAGE_SHAPE
     )
 
     base_model.trainable = False
 
-    model = tf.keras.Sequential([
+    model = tf.keras.Sequential(
+        [
             base_model,
             tf.keras.layers.BatchNormalization(renorm=True),
             tf.keras.layers.GlobalAveragePooling2D(),
             tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dense(256, activation="relu"),
-            tf.keras.layers.Dropout(0.5),
-            tf.keras.layers.Dense(256, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(128, activation="softmax"),
+            tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
-        ])
+        ]
+    )
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
