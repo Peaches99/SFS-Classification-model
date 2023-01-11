@@ -10,9 +10,9 @@ import psutil
 import tensorflow as tf
 from pynvml import nvmlInit
 
-IMAGE_SHAPE = (270, 270, 3)
+IMAGE_SHAPE = (224, 224, 3)
 EPOCHS = 10
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
 USE_CUDA = True
@@ -164,9 +164,10 @@ def main():
             base_model,
             tf.keras.layers.GlobalAveragePooling2D(),
             tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dense(256, activation="softmax"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
         ]
@@ -190,29 +191,11 @@ def main():
 
     model = save_best_model.best_model
 
-    # train a second time with the base model trainable
-    base_model.trainable = True
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
-        loss=tf.keras.losses.CategoricalCrossentropy(),
-        metrics=["accuracy"],
-    )
-
-    model.fit(
-        train_ds,
-        epochs=10,
-        validation_data=val_ds,
-        class_weight=class_weights,
-        callbacks=[save_best_model],
-    )
-
-    model = save_best_model.best_model
-
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
 
-    model.save("./models/" + "sfs_model_" + str(round(test_acc, 2)) + ".h5")
+    model.save("./models/" + "sfs_model_" + str((round(test_acc, 4))*100) + ".h5")
 
     # plt.plot(history.history["accuracy"], label="accuracy")
     # plt.plot(history.history["val_accuracy"], label="val_accuracy")
