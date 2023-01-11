@@ -145,8 +145,6 @@ def main():
     val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y))
     test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
 
-    # make a custom callback that saves the best model and replaces it if a better one appears
-    # dont actually save the best model as a file but only save it at the end
 
     class SaveBestModel(tf.keras.callbacks.Callback):
         def __init__(self):
@@ -172,6 +170,7 @@ def main():
     model = tf.keras.Sequential(
         [
             base_model,
+
             tf.keras.layers.GlobalAveragePooling2D(),
             tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
@@ -199,6 +198,7 @@ def main():
         callbacks=[save_best_model],
     )
 
+
     model = save_best_model.best_model
 
     # train a second time with the base model trainable
@@ -222,6 +222,7 @@ def main():
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
+
 
     model.save("./models/" + "sfs_model_" + str((round(test_acc, 4)) * 100) + ".h5")
 
