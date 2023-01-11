@@ -11,7 +11,7 @@ import tensorflow as tf
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (224, 224, 3)
-EPOCHS = 40
+EPOCHS = 50
 BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
@@ -152,7 +152,7 @@ def main():
             self.best_model = None
 
         def on_epoch_end(self, epoch, logs=None):
-            if logs["val_accuracy"] < self.best_val_acc:
+            if logs["val_accuracy"] > self.best_val_acc:
                 self.best_val_acc = logs["val_accuracy"]
                 self.best_model = self.model
 
@@ -211,7 +211,7 @@ def main():
 
     model.fit(
         train_ds,
-        epochs=10,
+        epochs=20,
         validation_data=val_ds,
         class_weight=class_weights,
         callbacks=[save_best_model],
