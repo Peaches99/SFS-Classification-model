@@ -10,9 +10,9 @@ import psutil
 import tensorflow as tf
 from pynvml import nvmlInit
 
-IMAGE_SHAPE = (270, 270, 3)
-EPOCHS = 10
-BATCH_SIZE = 16
+IMAGE_SHAPE = (224, 224, 3)
+EPOCHS = 40
+BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
 USE_CUDA = True
@@ -66,6 +66,16 @@ def make_dataset():
 
     class_names = dataset.class_names
     print("Class names: " + str(class_names))
+
+    # data_augmentation = tf.keras.Sequential(
+    #     [
+    #         tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
+    #         tf.keras.layers.experimental.preprocessing.RandomRotation(0.1),
+    #         tf.keras.layers.experimental.preprocessing.RandomZoom(0.1),
+    #     ]
+    # )
+
+    # dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
 
     # split the dataset into train, validation and test
     train_ds = dataset.take(int(len(dataset) * 0.7))
@@ -136,6 +146,21 @@ def main():
     test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
 
 
+    class SaveBestModel(tf.keras.callbacks.Callback):
+        def __init__(self):
+            self.best_val_acc = 0
+            self.best_model = None
+
+        def on_epoch_end(self, epoch, logs=None):
+            if logs["val_accuracy"] < self.best_val_acc:
+                self.best_val_acc = logs["val_accuracy"]
+                self.best_model = self.model
+
+        def on_train_end(self, logs=None):
+            self.model = self.best_model
+
+    save_best_model = SaveBestModel()
+
     base_model = tf.keras.applications.VGG19(
         include_top=False, weights="imagenet", input_shape=IMAGE_SHAPE
     )
@@ -145,11 +170,13 @@ def main():
     model = tf.keras.Sequential(
         [
             base_model,
-            tf.keras.layers.BatchNormalization(renorm=True),
+
             tf.keras.layers.GlobalAveragePooling2D(),
             tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(128, activation="softmax"),
+            tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
         ]
@@ -168,7 +195,11 @@ def main():
         epochs=EPOCHS,
         validation_data=val_ds,
         class_weight=class_weights,
+        callbacks=[save_best_model],
     )
+
+
+    model = save_best_model.best_model
 
     # train a second time with the base model trainable
     base_model.trainable = True
@@ -183,13 +214,17 @@ def main():
         epochs=10,
         validation_data=val_ds,
         class_weight=class_weights,
+        callbacks=[save_best_model],
     )
+
+    model = save_best_model.best_model
 
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
 
-    model.save("./models/" + "sfs_model_" + str(round(test_acc, 2)) + ".h5")
+
+    model.save("./models/" + "sfs_model_" + str((round(test_acc, 4)) * 100) + ".h5")
 
     # plt.plot(history.history["accuracy"], label="accuracy")
     # plt.plot(history.history["val_accuracy"], label="val_accuracy")
