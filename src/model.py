@@ -67,6 +67,18 @@ def make_dataset():
     class_names = dataset.class_names
     print("Class names: " + str(class_names))
 
+    # use data augmentation to add more data to the dataset
+    data_augmentation = tf.keras.Sequential(
+        [
+            tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
+            tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
+            tf.keras.layers.experimental.preprocessing.RandomZoom(0.2),
+            tf.keras.layers.experimental.preprocessing.RandomContrast(0.2),
+        ]
+    )
+
+    dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
+
     # split the dataset into train, validation and test
     train_ds = dataset.take(int(len(dataset) * 0.7))
     val_ds = dataset.skip(int(len(dataset) * 0.7))
@@ -213,7 +225,7 @@ def main():
     test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
 
-    model.save("./models/" + "sfs_model_" + str((round(test_acc, 4))*100) + ".h5")
+    model.save("./models/" + "sfs_model_" + str((round(test_acc, 4)) * 100) + ".h5")
 
     # plt.plot(history.history["accuracy"], label="accuracy")
     # plt.plot(history.history["val_accuracy"], label="val_accuracy")
