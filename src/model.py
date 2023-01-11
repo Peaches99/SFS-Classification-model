@@ -162,18 +162,16 @@ def main():
     model = tf.keras.Sequential(
         [
             base_model,
-            tf.keras.layers.Conv2D(256, 3, activation="relu"),
-            tf.keras.layers.Conv2D(256, 3, activation="relu"),
-            tf.keras.layers.UpSampling2D(size=(2, 2)),
-            tf.keras.layers.Conv2D(256, 3, activation="relu"),
-            tf.keras.layers.Conv2D(256, 3, activation="relu"),
             tf.keras.layers.GlobalAveragePooling2D(),
+
+            tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(256, activation="softmax"),
+            tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
         ]
     )
