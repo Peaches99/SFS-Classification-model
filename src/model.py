@@ -11,7 +11,7 @@ import tensorflow as tf
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (224, 224, 3)
-EPOCHS = 10
+EPOCHS = 40
 BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
@@ -67,17 +67,15 @@ def make_dataset():
     class_names = dataset.class_names
     print("Class names: " + str(class_names))
 
-    # use data augmentation to add more data to the dataset
-    data_augmentation = tf.keras.Sequential(
-        [
-            tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
-            tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
-            tf.keras.layers.experimental.preprocessing.RandomZoom(0.2),
-            tf.keras.layers.experimental.preprocessing.RandomContrast(0.2),
-        ]
-    )
+    # data_augmentation = tf.keras.Sequential(
+    #     [
+    #         tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
+    #         tf.keras.layers.experimental.preprocessing.RandomRotation(0.1),
+    #         tf.keras.layers.experimental.preprocessing.RandomZoom(0.1),
+    #     ]
+    # )
 
-    dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
+    # dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
 
     # split the dataset into train, validation and test
     train_ds = dataset.take(int(len(dataset) * 0.7))
@@ -156,7 +154,7 @@ def main():
             self.best_model = None
 
         def on_epoch_end(self, epoch, logs=None):
-            if logs["val_accuracy"] > self.best_val_acc:
+            if logs["val_accuracy"] < self.best_val_acc:
                 self.best_val_acc = logs["val_accuracy"]
                 self.best_model = self.model
 
