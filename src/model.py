@@ -174,11 +174,11 @@ def main():
             base_model,
             tf.keras.layers.GlobalAveragePooling2D(),
             tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(1024, activation="relu"),
+            tf.keras.layers.Dropout(0.1),
             tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dropout(0.1),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
         ]
     )
@@ -211,7 +211,7 @@ def main():
 
     model.fit(
         train_ds,
-        epochs=20,
+        epochs=10,
         validation_data=val_ds,
         class_weight=class_weights,
         callbacks=[save_best_model],
