@@ -191,6 +191,24 @@ def main():
 
     model = save_best_model.best_model
 
+    # train a second time with the base model trainable
+    base_model.trainable = True
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
+        loss=tf.keras.losses.CategoricalCrossentropy(),
+        metrics=["accuracy"],
+    )
+
+    model.fit(
+        train_ds,
+        epochs=10,
+        validation_data=val_ds,
+        class_weight=class_weights,
+        callbacks=[save_best_model],
+    )
+
+    model = save_best_model.best_model
+
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
