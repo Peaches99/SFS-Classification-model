@@ -173,11 +173,6 @@ def main():
 
             tf.keras.layers.GlobalAveragePooling2D(),
             tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dropout(0.1),
-            tf.keras.layers.Dense(1024, activation="relu"),
-            tf.keras.layers.Dropout(0.1),
-            tf.keras.layers.Dense(512, activation="relu"),
-            tf.keras.layers.Dropout(0.1),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
         ]
     )
