@@ -11,7 +11,9 @@ import tensorflow as tf
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (224, 224, 3)
-EPOCHS = 40
+
+EPOCHS = 50
+
 BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
@@ -67,17 +69,21 @@ def make_dataset():
     class_names = dataset.class_names
     print("Class names: " + str(class_names))
 
-    # data_augmentation = tf.keras.Sequential(
-    #     [
-    #         tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
-    #         tf.keras.layers.experimental.preprocessing.RandomRotation(0.1),
-    #         tf.keras.layers.experimental.preprocessing.RandomZoom(0.1),
-    #     ]
-    # )
+    data_augmentation = tf.keras.Sequential(
+        [
+            tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
+            tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
+            tf.keras.layers.experimental.preprocessing.RandomZoom(0.2),
+            tf.keras.layers.experimental.preprocessing.RandomContrast(0.2),
+            tf.keras.layers.experimental.preprocessing.RandomTranslation(0.2, 0.2),
+            tf.keras.layers.experimental.preprocessing.RandomCrop(
+                IMAGE_SHAPE[0], IMAGE_SHAPE[1]
+            ),
+        ]
+    )
 
-    # dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
+    dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
 
-    # split the dataset into train, validation and test
     train_ds = dataset.take(int(len(dataset) * 0.7))
     val_ds = dataset.skip(int(len(dataset) * 0.7))
     val_ds = val_ds.take(int(len(val_ds) * 0.6))
@@ -145,6 +151,20 @@ def main():
     val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y))
     test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
 
+    class SaveBestModel(tf.keras.callbacks.Callback):
+        def __init__(self):
+            self.best_val_acc = 0
+            self.best_model = None
+
+        def on_epoch_end(self, epoch, logs=None):
+            if logs["val_accuracy"] > self.best_val_acc:
+                self.best_val_acc = logs["val_accuracy"]
+                self.best_model = self.model
+
+        def on_train_end(self, logs=None):
+            self.model = self.best_model
+
+    save_best_model = SaveBestModel()
 
     class SaveBestModel(tf.keras.callbacks.Callback):
         def __init__(self):
@@ -171,10 +191,10 @@ def main():
         [
             base_model,
 
-            tf.keras.layers.GlobalAveragePooling2D(),
+            tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dense(1024, activation="relu"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
