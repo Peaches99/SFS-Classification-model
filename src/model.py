@@ -67,17 +67,21 @@ def make_dataset():
     class_names = dataset.class_names
     print("Class names: " + str(class_names))
 
-    # data_augmentation = tf.keras.Sequential(
-    #     [
-    #         tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
-    #         tf.keras.layers.experimental.preprocessing.RandomRotation(0.1),
-    #         tf.keras.layers.experimental.preprocessing.RandomZoom(0.1),
-    #     ]
-    # )
+    data_augmentation = tf.keras.Sequential(
+        [
+            tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
+            tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
+            tf.keras.layers.experimental.preprocessing.RandomZoom(0.2),
+            tf.keras.layers.experimental.preprocessing.RandomContrast(0.2),
+            tf.keras.layers.experimental.preprocessing.RandomTranslation(0.2, 0.2),
+            tf.keras.layers.experimental.preprocessing.RandomCrop(
+                IMAGE_SHAPE[0], IMAGE_SHAPE[1]
+            ),
+        ]
+    )
 
-    # dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
+    dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
 
-    # split the dataset into train, validation and test
     train_ds = dataset.take(int(len(dataset) * 0.7))
     val_ds = dataset.skip(int(len(dataset) * 0.7))
     val_ds = val_ds.take(int(len(val_ds) * 0.6))
@@ -145,7 +149,6 @@ def main():
     val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y))
     test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
 
-
     class SaveBestModel(tf.keras.callbacks.Callback):
         def __init__(self):
             self.best_val_acc = 0
@@ -170,9 +173,13 @@ def main():
     model = tf.keras.Sequential(
         [
             base_model,
-
-            tf.keras.layers.GlobalAveragePooling2D(),
+            tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(1024, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
         ]
     )
@@ -192,7 +199,6 @@ def main():
         class_weight=class_weights,
         callbacks=[save_best_model],
     )
-
 
     model = save_best_model.best_model
 
@@ -217,7 +223,6 @@ def main():
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
-
 
     model.save("./models/" + "sfs_model_" + str((round(test_acc, 4)) * 100) + ".h5")
 
