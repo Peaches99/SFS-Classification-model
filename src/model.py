@@ -151,6 +151,7 @@ def main():
     val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y))
     test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
 
+
     class SaveBestModel(tf.keras.callbacks.Callback):
         def __init__(self):
             self.best_val_acc = 0
