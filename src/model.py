@@ -77,31 +77,6 @@ def make_dataset():
 
     # dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
 
-    # data_augmentation = tf.keras.Sequential(
-    #     [
-    #         tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
-    #         tf.keras.layers.experimental.preprocessing.RandomRotation(0.1),
-    #         tf.keras.layers.experimental.preprocessing.RandomZoom(0.1),
-    #     ]
-    # )
-
-    # dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
-
-    data_augmentation = tf.keras.Sequential(
-        [
-            tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
-            tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
-            tf.keras.layers.experimental.preprocessing.RandomZoom(0.2),
-            tf.keras.layers.experimental.preprocessing.RandomContrast(0.2),
-            tf.keras.layers.experimental.preprocessing.RandomTranslation(0.2, 0.2),
-            tf.keras.layers.experimental.preprocessing.RandomCrop(
-                IMAGE_SHAPE[0], IMAGE_SHAPE[1]
-            ),
-        ]
-    )
-
-    dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
-
     train_ds = dataset.take(int(len(dataset) * 0.7))
     val_ds = dataset.skip(int(len(dataset) * 0.7))
     val_ds = val_ds.take(int(len(val_ds) * 0.6))
@@ -169,8 +144,6 @@ def main():
     val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y))
     test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
 
-    # make a custom callback that saves the best model and replaces it if a better one appears
-    # dont actually save the best model as a file but only save it at the end
 
     class SaveBestModel(tf.keras.callbacks.Callback):
         def __init__(self):
@@ -199,7 +172,9 @@ def main():
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(128, activation="softmax"),
+            tf.keras.layers.Dense(1024, activation="relu"),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(len(class_names), activation="softmax"),
         ]
@@ -222,7 +197,6 @@ def main():
         callbacks=[save_best_model],
     )
 
-
     model = save_best_model.best_model
 
     # train a second time with the base model trainable
@@ -243,7 +217,6 @@ def main():
 
     model = save_best_model.best_model
 
-    model = save_best_model.best_model
 
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
