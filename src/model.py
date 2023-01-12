@@ -11,9 +11,7 @@ import tensorflow as tf
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (224, 224, 3)
-
 EPOCHS = 50
-
 BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
@@ -69,20 +67,15 @@ def make_dataset():
     class_names = dataset.class_names
     print("Class names: " + str(class_names))
 
-    data_augmentation = tf.keras.Sequential(
-        [
-            tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
-            tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
-            tf.keras.layers.experimental.preprocessing.RandomZoom(0.2),
-            tf.keras.layers.experimental.preprocessing.RandomContrast(0.2),
-            tf.keras.layers.experimental.preprocessing.RandomTranslation(0.2, 0.2),
-            tf.keras.layers.experimental.preprocessing.RandomCrop(
-                IMAGE_SHAPE[0], IMAGE_SHAPE[1]
-            ),
-        ]
-    )
+    # data_augmentation = tf.keras.Sequential(
+    #     [
+    #         tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
+    #         tf.keras.layers.experimental.preprocessing.RandomRotation(0.1),
+    #         tf.keras.layers.experimental.preprocessing.RandomZoom(0.1),
+    #     ]
+    # )
 
-    dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
+    # dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
 
     train_ds = dataset.take(int(len(dataset) * 0.7))
     val_ds = dataset.skip(int(len(dataset) * 0.7))
@@ -201,6 +194,7 @@ def main():
         validation_data=val_ds,
         class_weight=class_weights,
         callbacks=[save_best_model],
+        callbacks=[save_best_model],
     )
 
     model = save_best_model.best_model
@@ -222,6 +216,7 @@ def main():
     )
 
     model = save_best_model.best_model
+
 
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
