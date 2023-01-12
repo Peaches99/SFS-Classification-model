@@ -169,12 +169,9 @@ def main():
     val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y))
     test_ds = test_ds.map(lambda x, y: (preprocess_input(x), y))
 
-<<<<<<< HEAD
     # make a custom callback that saves the best model and replaces it if a better one appears
     # dont actually save the best model as a file but only save it at the end
 
-=======
->>>>>>> e5bb623 (readded larger model)
     class SaveBestModel(tf.keras.callbacks.Callback):
         def __init__(self):
             self.best_val_acc = 0
@@ -199,9 +196,7 @@ def main():
     model = tf.keras.Sequential(
         [
             base_model,
-
             tf.keras.layers.Flatten(),
->>>>>>> e5bb623 (readded larger model)
             tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(128, activation="softmax"),
