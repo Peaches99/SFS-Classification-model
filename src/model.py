@@ -190,21 +190,6 @@ def main():
 
     save_best_model = SaveBestModel()
 
-    class SaveBestModel(tf.keras.callbacks.Callback):
-        def __init__(self):
-            self.best_val_acc = 0
-            self.best_model = None
-
-        def on_epoch_end(self, epoch, logs=None):
-            if logs["val_accuracy"] < self.best_val_acc:
-                self.best_val_acc = logs["val_accuracy"]
-                self.best_model = self.model
-
-        def on_train_end(self, logs=None):
-            self.model = self.best_model
-
-    save_best_model = SaveBestModel()
-
     base_model = tf.keras.applications.VGG19(
         include_top=False, weights="imagenet", input_shape=IMAGE_SHAPE
     )
@@ -215,8 +200,6 @@ def main():
         [
             base_model,
 
-            tf.keras.layers.GlobalAveragePooling2D(),
-=======
             tf.keras.layers.Flatten(),
 >>>>>>> e5bb623 (readded larger model)
             tf.keras.layers.Dense(512, activation="relu"),
@@ -244,8 +227,6 @@ def main():
         callbacks=[save_best_model],
     )
 
-    model = save_best_model.best_model
-
 
     model = save_best_model.best_model
 
@@ -272,7 +253,6 @@ def main():
     evaluated = model.evaluate(test_ds, verbose=2)
     test_acc = evaluated[1]
     print("\nTest accuracy:", test_acc)
-
 
     model.save("./models/" + "sfs_model_" + str((round(test_acc, 4)) * 100) + ".h5")
 
