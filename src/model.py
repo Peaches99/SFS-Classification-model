@@ -67,15 +67,15 @@ def make_dataset():
     class_names = dataset.class_names
     print("Class names: " + str(class_names))
 
-    # data_augmentation = tf.keras.Sequential(
-    #     [
-    #         tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
-    #         tf.keras.layers.experimental.preprocessing.RandomRotation(0.1),
-    #         tf.keras.layers.experimental.preprocessing.RandomZoom(0.1),
-    #     ]
-    # )
+    data_augmentation = tf.keras.Sequential(
+        [
+            tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal"),
+            tf.keras.layers.experimental.preprocessing.RandomRotation(0.1),
+            tf.keras.layers.experimental.preprocessing.RandomZoom(0.1),
+        ]
+    )
 
-    # dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
+    dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y))
 
     train_ds = dataset.take(int(len(dataset) * 0.7))
     val_ds = dataset.skip(int(len(dataset) * 0.7))
@@ -193,7 +193,6 @@ def main():
         epochs=EPOCHS,
         validation_data=val_ds,
         class_weight=class_weights,
-        callbacks=[save_best_model],
         callbacks=[save_best_model],
     )
 
