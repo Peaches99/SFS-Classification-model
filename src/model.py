@@ -11,7 +11,7 @@ import tensorflow as tf
 from pynvml import nvmlInit
 
 IMAGE_SHAPE = (224, 224, 3)
-EPOCHS = 50
+EPOCHS = 10
 BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 DATA_DIR = "data/"
