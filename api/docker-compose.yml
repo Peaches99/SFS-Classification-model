@@ -4,11 +4,12 @@ name: sfs
 services:
   redis:
       image: redis:alpine3.17
+      restart: always
       ports:
         - "6379:6379"
-      restart: always
-      command: >
-          --requirepass testing
+      command: redis-server --save 60 1 --loglevel warning --requirepass jy972yhkry781rq687yir26
+      # volumes: 
+      # - redis:/data
 
   classifier:
     build:
