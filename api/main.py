@@ -1,10 +1,10 @@
 import uvicorn
-from fastapi import FastAPI, File
+from fastapi import FastAPI, File, UploadFile
 import service
-import redis
 
-r = redis.Redis(host='redis', port="6379", password="jy972yhkry781rq687yir26")
+
 app = FastAPI()
+# replace host with redis when using docker
 
 
 @app.get("/")
@@ -12,6 +12,11 @@ async def read_root():
     return {"Hello": "World"}
 
 
+@app.post("/upload/")
+async def create_upload_file(file: UploadFile):
+    """Upload an image to the database."""
+    return await service.upload_image(file, "token")
+
+
 if __name__ == "__main__":
-    r.ping()
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
