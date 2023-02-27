@@ -1,13 +1,10 @@
-FROM tensorflow/tensorflow:latest
+FROM python:3.10.10-slim-bullseye
 
 WORKDIR /app
 
 COPY ./ ./
 
-RUN pip install pipreqs
-RUN pipreqs --force .
-
-RUN pip install -r requirements.txt
+RUN pip install -r requirements.txt --no-cache-dir
 
 EXPOSE 8000
 
