@@ -49,6 +49,7 @@ base_model = VGG19(weights='imagenet', include_top=False, input_shape=(*image_si
 x = base_model.output
 x = GlobalAveragePooling2D()(x)
 x = Dense(1024, activation='relu')(x)
+x = Dense(1024, activation='relu')(x)
 x = Dropout(0.5)(x)
 predictions = Dense(len(train_generator.class_indices), activation='softmax')(x)
 
@@ -73,7 +74,7 @@ class_weights = class_weight.compute_class_weight(
 # Train the model
 history = model.fit(
     train_generator,
-    epochs=10,
+    epochs=50,
     validation_data=val_generator,
     class_weight=dict(enumerate(class_weights))
 )
