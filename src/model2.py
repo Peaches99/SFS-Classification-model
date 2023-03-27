@@ -79,10 +79,10 @@ class_weights = class_weight.compute_class_weight(
 )
 
 early_stopping = EarlyStopping(
-    monitor="val_loss", patience=10, restore_best_weights=True
+    monitor="val_loss", patience=15, restore_best_weights=True
 )
 model_checkpoint = ModelCheckpoint(
-    "best_model.h5", monitor="val_loss", save_best_only=True
+    "models/best_model.h5", monitor="val_loss", save_best_only=True
 )
 
 # Train the model
@@ -95,7 +95,7 @@ history = model.fit(
 )
 
 # Unfreeze some layers of the base model (VGG19) for fine-tuning
-for layer in base_model.layers[-4:]:
+for layer in base_model.layers[-6:]:
     layer.trainable = True
 
 # Compile the model with a lower learning rate
@@ -106,10 +106,10 @@ model.compile(
 )
 
 early_stopping = EarlyStopping(
-    monitor="val_loss", patience=10, restore_best_weights=True
+    monitor="val_loss", patience=15, restore_best_weights=True
 )
 model_checkpoint = ModelCheckpoint(
-    "best_fine_model.h5", monitor="val_loss", save_best_only=True
+    "models/best_fine_model.h5", monitor="val_loss", save_best_only=True
 )
 
 # Train the model for fine-tuning
@@ -120,5 +120,3 @@ fine_tuning_history = model.fit(
     class_weight=dict(enumerate(class_weights)),
     callbacks=[early_stopping, model_checkpoint],
 )
-
-model.save("./models/" + "sfs_model_new.h5")
